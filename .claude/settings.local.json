@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go version:*)",
+      "Bash(cmd /c \"go version\")",
+      "Bash(powershell -Command \"go version\")",
+      "Bash(powershell -Command \"go mod init sugu\")"
+    ]
+  }
+}
