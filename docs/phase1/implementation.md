@@ -32,9 +32,9 @@ Phase 1 では、言語の基本機能を実装します。
 - [x] Lexer テスト
 
 #### Step 4: AST 定義（ast パッケージ）
-- [ ] ノードインターフェース
-- [ ] 式（Expression）ノード
-- [ ] 文（Statement）ノード
+- [x] ノードインターフェース
+- [x] 式（Expression）ノード
+- [x] 文（Statement）ノード
 
 #### Step 5: 構文解析器（parser パッケージ）
 - [ ] 式の解析

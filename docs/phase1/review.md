@@ -1,5 +1,53 @@
 # Phase 1 コードレビュー - 将来の改善点
 
+## AST パッケージ
+
+### 1. 位置情報の欠如
+```go
+// 現在: ASTノードに位置情報がない
+type Identifier struct {
+    Token token.Token
+    Value string
+}
+
+// 将来的に: エラーメッセージを改善するために位置情報を追加
+type Identifier struct {
+    Token token.Token
+    Value string
+    Line  int  // 行番号
+    Column int // 列番号
+}
+```
+
+### 2. NumberLiteralの値が文字列型
+```go
+// 現在: Value string で保持
+type NumberLiteral struct {
+    Token token.Token
+    Value string  // "42" や "3.14"
+}
+
+// 将来的に: 評価時に毎回パースする必要がある
+// パーサーで型変換するか、evaluatorで適切に処理する必要がある
+```
+
+### 3. エラーハンドリングの仕組みがない
+- ASTノードの構築時にエラーが発生する可能性があるが、現状では返す方法がない
+- 将来的にはコンストラクタパターンやビルダーパターンの導入を検討
+
+### 4. テストカバレッジの拡充
+- 現在のテストはString()メソッドの動作確認が中心
+- 以下のテストを追加すべき：
+  - エッジケース（nil値、空の配列など）
+  - ネストした構造のテスト
+  - 複雑な式の組み合わせ
+
+### 5. ForStatementのセミコロン表現
+```go
+// for文のString()で常にセミコロンが表示される
+// "for (; ; ) { }" のような表示になるが、これは仕様通りか確認が必要
+```
+
 ## Lexer パッケージ
 
 ### 1. 文字列のエスケープシーケンス未対応

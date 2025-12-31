@@ -6,7 +6,14 @@
       "Bash(powershell -Command \"go version\")",
       "Bash(powershell -Command \"go mod init sugu\")",
       "Skill(create-pull-request)",
-      "Skill(create-pull-request:*)"
+      "Skill(create-pull-request:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(gh pr create --title \"AST（抽象構文木）パッケージを実装\" --body \"$\\(cat <<''EOF''\n## 概要\nPhase 1で必要なAST（抽象構文木）パッケージを実装しました。\nこれにより、パーサーが構文解析した結果を表現できるようになります。\n\n## 実装内容\n\n### 基本インターフェース\n- `Node` - すべてのASTノードの基底インターフェース\n- `Statement` - 文を表すノード\n- `Expression` - 式を表すノード\n- `Program` - プログラム全体を表すルートノード\n\n### リテラル\n- `NumberLiteral` - 数値リテラル（`42`, `3.14`）\n- `StringLiteral` - 文字列リテラル（`\"hello\"`）\n- `BooleanLiteral` - 真偽値リテラル（`true`, `false`）\n- `NullLiteral` - null値\n\n### 式（Expression）\n- `Identifier` - 識別子（変数名、関数名）\n- `PrefixExpression` - 前置演算子式（`!x`, `-x`）\n- `InfixExpression` - 中置演算子式（`x + y`, `x == y`）\n- `CallExpression` - 関数呼び出し（`add\\(1, 2\\)`）\n- `FunctionLiteral` - 関数リテラル\n\n### 文（Statement）\n- `VariableStatement` - 変数宣言（`mut x = 10;`, `const PI = 3.14;`）\n- `ReturnStatement` - return文\n- `ExpressionStatement` - 式文\n- `BlockStatement` - ブロック文（`{ ... }`）\n- `IfStatement` - if文（else節対応）\n- `WhileStatement` - while文\n- `ForStatement` - for文\n- `SwitchStatement` - switch文（case/default対応）\n- `BreakStatement` - break文\n- `ContinueStatement` - continue文\n\n### その他\n- `CaseClause` - switch文のcase節\n\n## テスト\n各ノードの`String\\(\\)`メソッドと基本的な機能をテストしています。\n全15個のテストケースがすべて成功しています。\n\n## 次のステップ\n次はStep 5として、これらのASTノードを生成するパーサー（構文解析器）を実装します。\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")",
+      "Bash(gh version:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(go test:*)"
     ]
   }
 }
