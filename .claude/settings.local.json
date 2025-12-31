@@ -4,7 +4,9 @@
       "Bash(go version:*)",
       "Bash(cmd /c \"go version\")",
       "Bash(powershell -Command \"go version\")",
-      "Bash(powershell -Command \"go mod init sugu\")"
+      "Bash(powershell -Command \"go mod init sugu\")",
+      "Skill(create-pull-request)",
+      "Skill(create-pull-request:*)"
     ]
   }
 }
