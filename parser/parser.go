@@ -235,6 +235,8 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		leftExp = p.parseFunctionLiteral()
 	case token.LBRACKET:
 		leftExp = p.parseArrayLiteral()
+	case token.LBRACE:
+		leftExp = p.parseMapLiteral()
 	default:
 		msg := fmt.Sprintf("no prefix parse function for %s found", p.curToken.Type)
 		p.errors = append(p.errors, msg)
@@ -681,4 +683,34 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 	}
 
 	return exp
+}
+
+// parseMapLiteral はマップリテラルをパース
+func (p *Parser) parseMapLiteral() ast.Expression {
+	mapLit := &ast.MapLiteral{Token: p.curToken}
+	mapLit.Pairs = make(map[ast.Expression]ast.Expression)
+
+	for !p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
+		key := p.parseExpression(LOWEST)
+
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
+
+		p.nextToken()
+		value := p.parseExpression(LOWEST)
+
+		mapLit.Pairs[key] = value
+
+		if !p.peekTokenIs(token.RBRACE) && !p.expectPeek(token.COMMA) {
+			return nil
+		}
+	}
+
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+
+	return mapLit
 }

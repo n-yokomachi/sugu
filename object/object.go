@@ -20,6 +20,7 @@ const (
 	FUNCTION_OBJ ObjectType = "FUNCTION"
 	BUILTIN_OBJ  ObjectType = "BUILTIN"
 	ARRAY_OBJ    ObjectType = "ARRAY"
+	MAP_OBJ      ObjectType = "MAP"
 )
 
 // Object はすべてのオブジェクトの基底インターフェース
@@ -131,4 +132,60 @@ func (a *Array) Inspect() string {
 		elements = append(elements, e.Inspect())
 	}
 	return "[" + strings.Join(elements, ", ") + "]"
+}
+
+// Hashable はマップのキーとして使用可能なオブジェクトのインターフェース
+type Hashable interface {
+	HashKey() HashKey
+}
+
+// HashKey はマップのキーを表す
+type HashKey struct {
+	Type  ObjectType
+	Value uint64
+}
+
+// HashPair はマップのキーと値のペアを表す
+type HashPair struct {
+	Key   Object
+	Value Object
+}
+
+// Map はマップを表す
+type Map struct {
+	Pairs map[HashKey]HashPair
+}
+
+func (m *Map) Type() ObjectType { return MAP_OBJ }
+func (m *Map) Inspect() string {
+	pairs := []string{}
+	for _, pair := range m.Pairs {
+		pairs = append(pairs, fmt.Sprintf("%s: %s", pair.Key.Inspect(), pair.Value.Inspect()))
+	}
+	return "{" + strings.Join(pairs, ", ") + "}"
+}
+
+// Number の HashKey メソッド
+func (n *Number) HashKey() HashKey {
+	return HashKey{Type: n.Type(), Value: math.Float64bits(n.Value)}
+}
+
+// String の HashKey メソッド
+func (s *String) HashKey() HashKey {
+	h := uint64(0)
+	for i, c := range s.Value {
+		h = h*31 + uint64(c) + uint64(i)
+	}
+	return HashKey{Type: s.Type(), Value: h}
+}
+
+// Boolean の HashKey メソッド
+func (b *Boolean) HashKey() HashKey {
+	var value uint64
+	if b.Value {
+		value = 1
+	} else {
+		value = 0
+	}
+	return HashKey{Type: b.Type(), Value: value}
 }

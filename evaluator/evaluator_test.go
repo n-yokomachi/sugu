@@ -650,3 +650,109 @@ func TestArrayInspect(t *testing.T) {
 		t.Errorf("Array.Inspect() wrong. got=%q, want=%q", result.Inspect(), expected)
 	}
 }
+
+func TestMapLiterals(t *testing.T) {
+	input := `{"one": 1, "two": 2, "three": 3}`
+
+	evaluated := testEval(input)
+	result, ok := evaluated.(*object.Map)
+	if !ok {
+		t.Fatalf("Eval didn't return Map. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	expected := map[object.HashKey]float64{
+		(&object.String{Value: "one"}).HashKey():   1,
+		(&object.String{Value: "two"}).HashKey():   2,
+		(&object.String{Value: "three"}).HashKey(): 3,
+	}
+
+	if len(result.Pairs) != len(expected) {
+		t.Fatalf("Map has wrong num of pairs. got=%d", len(result.Pairs))
+	}
+
+	for expectedKey, expectedValue := range expected {
+		pair, ok := result.Pairs[expectedKey]
+		if !ok {
+			t.Errorf("no pair for given key in Pairs")
+		}
+
+		testNumberObject(t, pair.Value, expectedValue)
+	}
+}
+
+func TestMapIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{
+			`{"foo": 5}["foo"]`,
+			5,
+		},
+		{
+			`{"foo": 5}["bar"]`,
+			nil,
+		},
+		{
+			`mut key = "foo"; {"foo": 5}[key]`,
+			5,
+		},
+		{
+			`{}["foo"]`,
+			nil,
+		},
+		{
+			`{5: 5}[5]`,
+			5,
+		},
+		{
+			`{true: 5}[true]`,
+			5,
+		},
+		{
+			`{false: 5}[false]`,
+			5,
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testNumberObject(t, evaluated, float64(integer))
+		} else {
+			testNullObject(t, evaluated)
+		}
+	}
+}
+
+func TestMapWithExpressionKeys(t *testing.T) {
+	input := `
+mut key = "name";
+{key: "value"}[key]
+`
+	evaluated := testEval(input)
+	result, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if result.Value != "value" {
+		t.Errorf("String has wrong value. got=%q, want=%q", result.Value, "value")
+	}
+}
+
+func TestMapUnhashableKey(t *testing.T) {
+	input := `{[1, 2]: "array"}`
+
+	evaluated := testEval(input)
+	errObj, ok := evaluated.(*object.Error)
+	if !ok {
+		t.Fatalf("no error object returned. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	expectedMessage := "unusable as hash key: ARRAY"
+	if errObj.Message != expectedMessage {
+		t.Errorf("wrong error message. expected=%q, got=%q", expectedMessage, errObj.Message)
+	}
+}
