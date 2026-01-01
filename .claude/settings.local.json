@@ -13,7 +13,11 @@
       "Bash(gh version:*)",
       "Bash(git checkout:*)",
       "Bash(git stash:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(gh pr review 5 --comment -b \"$\\(cat <<''EOF''\n## Parser パッケージ レビュー\n\n### 1. 変数シャドウイングの問題\n`peekPrecedence\\(\\)` でレシーバーの `p` が `precedences` の値でシャドウされている。動作には問題ないが、可読性のため `prec` などに変更すべき。\n\n### 2. エラーメッセージに位置情報がない\n`peekError\\(\\)` で行番号・列番号がないためデバッグが困難。\n\n### 3. for文の初期化式がセミコロンを2回消費\n`parseStatement` がセミコロンを消費するため、for文内でのセミコロン処理に注意が必要。\n\n### 4. switch文のcaseブロックに明示的なブレース要求\n現在 `case 1: { ... }` の形式のみ対応。Sugu言語仕様としてブレース必須なら問題なし。\n\n### 5. 論理演算子のテスト不足\n`&&` と `||` は優先順位テーブルに定義されているが、専用のテストがない。\n\n### 6. 代入式が未実装\n`x = 10;` のような代入式は将来的にサポートを検討。\n\n### 7. 配列・マップリテラルの未対応\nPhase 1 スコープ外だが、将来的にサポートが必要。\nEOF\n\\)\")",
+      "Bash(git pull:*)",
+      "Skill(create-feature-branch)",
+      "Skill(create-feature-branch:*)"
     ]
   }
 }
