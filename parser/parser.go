@@ -195,16 +195,16 @@ var precedences = map[token.TokenType]int{
 
 // peekPrecedence は次のトークンの優先順位を返す
 func (p *Parser) peekPrecedence() int {
-	if p, ok := precedences[p.peekToken.Type]; ok {
-		return p
+	if prec, ok := precedences[p.peekToken.Type]; ok {
+		return prec
 	}
 	return LOWEST
 }
 
 // curPrecedence は現在のトークンの優先順位を返す
 func (p *Parser) curPrecedence() int {
-	if p, ok := precedences[p.curToken.Type]; ok {
-		return p
+	if prec, ok := precedences[p.curToken.Type]; ok {
+		return prec
 	}
 	return LOWEST
 }
@@ -374,14 +374,31 @@ func (p *Parser) parseIfStatement() *ast.IfStatement {
 	if p.peekTokenIs(token.ELSE) {
 		p.nextToken()
 
-		if !p.expectPeek(token.LBRACE) {
-			return nil
+		// else if をサポート
+		if p.peekTokenIs(token.IF) {
+			p.nextToken()
+			ifStmt := p.parseIfStatement()
+			if ifStmt == nil {
+				return nil
+			}
+			stmt.Alternative = wrapIfInBlock(ifStmt)
+		} else {
+			if !p.expectPeek(token.LBRACE) {
+				return nil
+			}
+			stmt.Alternative = p.parseBlockStatement()
 		}
-
-		stmt.Alternative = p.parseBlockStatement()
 	}
 
 	return stmt
+}
+
+// wrapIfInBlock はIfStatementをBlockStatementでラップする
+func wrapIfInBlock(ifStmt *ast.IfStatement) *ast.BlockStatement {
+	return &ast.BlockStatement{
+		Token: ifStmt.Token,
+		Statements: []ast.Statement{ifStmt},
+	}
 }
 
 // parseBlockStatement はブロック文をパース

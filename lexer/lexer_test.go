@@ -240,3 +240,33 @@ mut z = 30;`
 		}
 	}
 }
+
+func TestStringEscapeSequences(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`"hello\nworld"`, "hello\nworld"},
+		{`"hello\tworld"`, "hello\tworld"},
+		{`"hello\rworld"`, "hello\rworld"},
+		{`"hello\"world"`, "hello\"world"},
+		{`"hello\\world"`, "hello\\world"},
+		{`"line1\nline2\nline3"`, "line1\nline2\nline3"},
+		{`"tab\there"`, "tab\there"},
+		{`"quote: \"test\""`, "quote: \"test\""},
+	}
+
+	for _, tt := range tests {
+		l := New(tt.input)
+		tok := l.NextToken()
+
+		if tok.Type != token.STRING {
+			t.Errorf("token type wrong. expected=STRING, got=%s", tok.Type)
+		}
+
+		if tok.Literal != tt.expected {
+			t.Errorf("string literal wrong. input=%s, expected=%q, got=%q",
+				tt.input, tt.expected, tok.Literal)
+		}
+	}
+}

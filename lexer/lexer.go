@@ -203,14 +203,34 @@ func (l *Lexer) readNumber() string {
 }
 
 func (l *Lexer) readString() string {
-	position := l.position + 1 // 開始の '"' の次から
-	for {
-		l.readChar()
-		if l.ch == '"' || l.ch == 0 {
-			break
+	var result []byte
+	l.readChar() // 開始の '"' をスキップ
+
+	for l.ch != '"' && l.ch != 0 {
+		if l.ch == '\\' {
+			l.readChar()
+			switch l.ch {
+			case 'n':
+				result = append(result, '\n')
+			case 't':
+				result = append(result, '\t')
+			case 'r':
+				result = append(result, '\r')
+			case '"':
+				result = append(result, '"')
+			case '\\':
+				result = append(result, '\\')
+			default:
+				// 不明なエスケープシーケンスはそのまま
+				result = append(result, '\\', l.ch)
+			}
+		} else {
+			result = append(result, l.ch)
 		}
+		l.readChar()
 	}
-	return l.input[position:l.position]
+
+	return string(result)
 }
 
 func isLetter(ch byte) bool {

@@ -52,7 +52,6 @@ func Start(in io.Reader, out io.Writer) {
 
 		evaluated := evaluator.Eval(program, env)
 		if evaluated != nil {
-			// エラーの場合は赤色で表示
 			if errObj, ok := evaluated.(*object.Error); ok {
 				fmt.Fprintf(out, "Error: %s\n", errObj.Message)
 			} else {

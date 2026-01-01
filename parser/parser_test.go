@@ -486,3 +486,73 @@ func TestWhileStatement(t *testing.T) {
 		t.Fatalf("stmt.Body is nil")
 	}
 }
+
+func TestElseIfStatement(t *testing.T) {
+	input := `
+if (x < 0) {
+	outln("negative");
+} else if (x == 0) {
+	outln("zero");
+} else if (x > 0) {
+	outln("positive");
+} else {
+	outln("unknown");
+}
+`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	ifStmt, ok := program.Statements[0].(*ast.IfStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.IfStatement. got=%T",
+			program.Statements[0])
+	}
+	testElseIfChain(t, ifStmt)
+}
+
+func testElseIfChain(t *testing.T, ifStmt *ast.IfStatement) {
+	// 最初のif
+	if ifStmt.Consequence == nil {
+		t.Fatalf("ifStmt.Consequence is nil")
+	}
+
+	// else if (x == 0)
+	if ifStmt.Alternative == nil {
+		t.Fatalf("ifStmt.Alternative is nil (first else if)")
+	}
+
+	if len(ifStmt.Alternative.Statements) != 1 {
+		t.Fatalf("else branch does not contain 1 statement. got=%d",
+			len(ifStmt.Alternative.Statements))
+	}
+
+	secondIf, ok := ifStmt.Alternative.Statements[0].(*ast.IfStatement)
+	if !ok {
+		t.Fatalf("first else branch is not IfStatement. got=%T",
+			ifStmt.Alternative.Statements[0])
+	}
+
+	// else if (x > 0)
+	if secondIf.Alternative == nil {
+		t.Fatalf("secondIf.Alternative is nil (second else if)")
+	}
+
+	thirdIf, ok := secondIf.Alternative.Statements[0].(*ast.IfStatement)
+	if !ok {
+		t.Fatalf("second else branch is not IfStatement. got=%T",
+			secondIf.Alternative.Statements[0])
+	}
+
+	// final else
+	if thirdIf.Alternative == nil {
+		t.Fatalf("thirdIf.Alternative is nil (final else)")
+	}
+}
