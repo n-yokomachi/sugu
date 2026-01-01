@@ -14,20 +14,6 @@ Sugu is a simple interpreted language implemented in Go. It features JavaScript-
 - Functions and closures
 - Control flow (if, switch, while, for)
 
-## Development Status
-
-### Phase 1 (In Progress)
-
-- [x] Token definitions
-- [x] Lexer
-- [ ] AST definitions
-- [ ] Parser
-- [ ] Object system
-- [ ] Evaluator
-- [ ] REPL
-
-See [docs/phase1/implementation.md](docs/phase1/implementation.md) for details.
-
 ## License
 
 MIT License
