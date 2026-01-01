@@ -1,0 +1,15 @@
+// Hello World in Sugu
+
+outln("Hello, World!");
+
+// Variables
+mut greeting = "Hello";
+const name = "Sugu";
+outln(greeting + ", " + name + "!");
+
+// Function
+func greet(person) => {
+    return greeting + ", " + person + "!";
+}
+
+outln(greet("User"));
