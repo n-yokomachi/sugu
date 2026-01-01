@@ -474,6 +474,174 @@ func TestBuiltinFunctions(t *testing.T) {
 	}
 }
 
+func TestBuiltinLen(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`len("")`, 0},
+		{`len("four")`, 4},
+		{`len("hello world")`, 11},
+		{`len([1, 2, 3])`, 3},
+		{`len([])`, 0},
+		{`len({"a": 1, "b": 2})`, 2},
+		{`len({})`, 0},
+		{`len(1)`, "argument to `len` not supported, got NUMBER"},
+		{`len("one", "two")`, "wrong number of arguments. got=2, want=1"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("object is not Error. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestBuiltinPush(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`push([1, 2], 3)`, []int{1, 2, 3}},
+		{`push([], 1)`, []int{1}},
+		{`mut arr = [1]; push(arr, 2); arr`, []int{1}}, // 元の配列は変更されない
+		{`push(1, 1)`, "argument to `push` must be ARRAY, got NUMBER"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case []int:
+			arr, ok := evaluated.(*object.Array)
+			if !ok {
+				t.Errorf("object is not Array. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if len(arr.Elements) != len(expected) {
+				t.Errorf("wrong num of elements. got=%d, want=%d", len(arr.Elements), len(expected))
+				continue
+			}
+			for i, exp := range expected {
+				testNumberObject(t, arr.Elements[i], float64(exp))
+			}
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("object is not Error. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestBuiltinFirstLastRest(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`first([1, 2, 3])`, 1},
+		{`first([])`, nil},
+		{`last([1, 2, 3])`, 3},
+		{`last([])`, nil},
+		{`rest([1, 2, 3])`, []int{2, 3}},
+		{`rest([1])`, []int{}},
+		{`rest([])`, nil},
+		{`first(1)`, "argument to `first` must be ARRAY, got NUMBER"},
+		{`last(1)`, "argument to `last` must be ARRAY, got NUMBER"},
+		{`rest(1)`, "argument to `rest` must be ARRAY, got NUMBER"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case nil:
+			testNullObject(t, evaluated)
+		case []int:
+			arr, ok := evaluated.(*object.Array)
+			if !ok {
+				t.Errorf("object is not Array. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if len(arr.Elements) != len(expected) {
+				t.Errorf("wrong num of elements. got=%d, want=%d", len(arr.Elements), len(expected))
+				continue
+			}
+			for i, exp := range expected {
+				testNumberObject(t, arr.Elements[i], float64(exp))
+			}
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("object is not Error. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestBuiltinKeysValues(t *testing.T) {
+	// keys と values の順序は不定なので、要素数のみチェック
+	tests := []struct {
+		input        string
+		expectedLen  int
+		expectedType string
+	}{
+		{`len(keys({"a": 1, "b": 2}))`, 2, "number"},
+		{`len(keys({}))`, 0, "number"},
+		{`len(values({"a": 1, "b": 2}))`, 2, "number"},
+		{`len(values({}))`, 0, "number"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, float64(tt.expectedLen))
+	}
+}
+
+func TestBuiltinKeysValuesErrors(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`keys(1)`, "argument to `keys` must be MAP, got NUMBER"},
+		{`values(1)`, "argument to `values` must be MAP, got NUMBER"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("object is not Error. got=%T (%+v)", evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("wrong error message. expected=%q, got=%q", tt.expected, errObj.Message)
+		}
+	}
+}
+
 // ヘルパー関数
 
 func testEval(input string) object.Object {
