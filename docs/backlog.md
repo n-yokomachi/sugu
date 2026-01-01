@@ -130,6 +130,18 @@ case "%":
     return &object.Number{Value: math.Mod(leftVal, rightVal)}
 ```
 
+### 文字列インデックスのマルチバイト文字対応
+```go
+// 現在: バイト単位でアクセス（ASCII のみ正しく動作）
+return &object.String{Value: string(stringObject.Value[idx])}
+
+// 改善: rune に変換してからアクセス
+runes := []rune(stringObject.Value)
+return &object.String{Value: string(runes[idx])}
+```
+- `"あいう"[1]` が正しく `"い"` を返すようになる
+- Lexer の Unicode 対応と合わせて対応推奨
+
 ---
 
 ## REPL パッケージ

@@ -54,7 +54,7 @@ func Start(in io.Reader, out io.Writer) {
 		if evaluated != nil {
 			if errObj, ok := evaluated.(*object.Error); ok {
 				fmt.Fprintf(out, "Error: %s\n", errObj.Message)
-			} else {
+			} else if evaluated.Type() != object.NULL_OBJ {
 				fmt.Fprintln(out, evaluated.Inspect())
 			}
 		}

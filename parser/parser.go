@@ -172,6 +172,7 @@ const (
 	PRODUCT     // *
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
+	INDEX       // array[index]
 )
 
 // 優先順位テーブル
@@ -191,6 +192,7 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.PERCENT:  PRODUCT,
 	token.LPAREN:   CALL,
+	token.LBRACKET: INDEX,
 }
 
 // peekPrecedence は次のトークンの優先順位を返す
@@ -231,6 +233,8 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		leftExp = p.parseGroupedExpression()
 	case token.FUNC:
 		leftExp = p.parseFunctionLiteral()
+	case token.LBRACKET:
+		leftExp = p.parseArrayLiteral()
 	default:
 		msg := fmt.Sprintf("no prefix parse function for %s found", p.curToken.Type)
 		p.errors = append(p.errors, msg)
@@ -256,6 +260,9 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		case token.LPAREN:
 			p.nextToken()
 			leftExp = p.parseCallExpression(leftExp)
+		case token.LBRACKET:
+			p.nextToken()
+			leftExp = p.parseIndexExpression(leftExp)
 		default:
 			return leftExp
 		}
@@ -628,4 +635,50 @@ func (p *Parser) parseFunctionParameters() []*ast.Identifier {
 	}
 
 	return identifiers
+}
+
+// parseArrayLiteral は配列リテラルをパース
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+	array.Elements = p.parseExpressionList(token.RBRACKET)
+	return array
+}
+
+// parseExpressionList は式のリストをパース（配列要素や関数引数に使用）
+func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
+	list := []ast.Expression{}
+
+	if p.peekTokenIs(end) {
+		p.nextToken()
+		return list
+	}
+
+	p.nextToken()
+	list = append(list, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		list = append(list, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(end) {
+		return nil
+	}
+
+	return list
+}
+
+// parseIndexExpression はインデックスアクセス式をパース
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	exp.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
 }

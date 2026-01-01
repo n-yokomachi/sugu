@@ -19,6 +19,7 @@ const (
 	ERROR_OBJ    ObjectType = "ERROR"
 	FUNCTION_OBJ ObjectType = "FUNCTION"
 	BUILTIN_OBJ  ObjectType = "BUILTIN"
+	ARRAY_OBJ    ObjectType = "ARRAY"
 )
 
 // Object はすべてのオブジェクトの基底インターフェース
@@ -117,3 +118,17 @@ type Builtin struct {
 
 func (b *Builtin) Type() ObjectType { return BUILTIN_OBJ }
 func (b *Builtin) Inspect() string  { return "builtin function" }
+
+// Array は配列を表す
+type Array struct {
+	Elements []Object
+}
+
+func (a *Array) Type() ObjectType { return ARRAY_OBJ }
+func (a *Array) Inspect() string {
+	elements := []string{}
+	for _, e := range a.Elements {
+		elements = append(elements, e.Inspect())
+	}
+	return "[" + strings.Join(elements, ", ") + "]"
+}
