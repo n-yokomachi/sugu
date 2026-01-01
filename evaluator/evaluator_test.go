@@ -518,3 +518,135 @@ func testNullObject(t *testing.T, obj object.Object) bool {
 	}
 	return true
 }
+
+func TestArrayLiterals(t *testing.T) {
+	input := "[1, 2 * 2, 3 + 3]"
+
+	evaluated := testEval(input)
+	result, ok := evaluated.(*object.Array)
+	if !ok {
+		t.Fatalf("object is not Array. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if len(result.Elements) != 3 {
+		t.Fatalf("array has wrong num of elements. got=%d", len(result.Elements))
+	}
+
+	testNumberObject(t, result.Elements[0], 1)
+	testNumberObject(t, result.Elements[1], 4)
+	testNumberObject(t, result.Elements[2], 6)
+}
+
+func TestArrayIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{
+			"[1, 2, 3][0]",
+			1,
+		},
+		{
+			"[1, 2, 3][1]",
+			2,
+		},
+		{
+			"[1, 2, 3][2]",
+			3,
+		},
+		{
+			"mut i = 0; [1][i];",
+			1,
+		},
+		{
+			"[1, 2, 3][1 + 1];",
+			3,
+		},
+		{
+			"mut myArray = [1, 2, 3]; myArray[2];",
+			3,
+		},
+		{
+			"mut myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];",
+			6,
+		},
+		{
+			"mut myArray = [1, 2, 3]; mut i = myArray[0]; myArray[i];",
+			2,
+		},
+		{
+			"[1, 2, 3][3]",
+			nil,
+		},
+		{
+			"[1, 2, 3][-1]",
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testNumberObject(t, evaluated, float64(integer))
+		} else {
+			testNullObject(t, evaluated)
+		}
+	}
+}
+
+func TestStringIndexExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{
+			`"hello"[0]`,
+			"h",
+		},
+		{
+			`"hello"[4]`,
+			"o",
+		},
+		{
+			`"hello"[5]`,
+			nil,
+		},
+		{
+			`"hello"[-1]`,
+			nil,
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := tt.expected.(string)
+		if ok {
+			result, ok := evaluated.(*object.String)
+			if !ok {
+				t.Errorf("object is not String. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if result.Value != str {
+				t.Errorf("object has wrong value. got=%q, want=%q", result.Value, str)
+			}
+		} else {
+			testNullObject(t, evaluated)
+		}
+	}
+}
+
+func TestArrayInspect(t *testing.T) {
+	input := "[1, 2, 3]"
+
+	evaluated := testEval(input)
+	result, ok := evaluated.(*object.Array)
+	if !ok {
+		t.Fatalf("object is not Array. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	expected := "[1, 2, 3]"
+	if result.Inspect() != expected {
+		t.Errorf("Array.Inspect() wrong. got=%q, want=%q", result.Inspect(), expected)
+	}
+}

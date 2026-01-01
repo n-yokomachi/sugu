@@ -556,3 +556,115 @@ func testElseIfChain(t *testing.T, ifStmt *ast.IfStatement) {
 		t.Fatalf("thirdIf.Alternative is nil (final else)")
 	}
 }
+
+func TestArrayLiteralParsing(t *testing.T) {
+	input := "[1, 2 * 2, 3 + 3]"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
+			program.Statements[0])
+	}
+
+	array, ok := stmt.Expression.(*ast.ArrayLiteral)
+	if !ok {
+		t.Fatalf("exp is not ast.ArrayLiteral. got=%T", stmt.Expression)
+	}
+
+	if len(array.Elements) != 3 {
+		t.Fatalf("len(array.Elements) not 3. got=%d", len(array.Elements))
+	}
+
+	testNumberLiteral(t, array.Elements[0], "1")
+
+	infix, ok := array.Elements[1].(*ast.InfixExpression)
+	if !ok {
+		t.Fatalf("array.Elements[1] is not ast.InfixExpression. got=%T", array.Elements[1])
+	}
+	if infix.Operator != "*" {
+		t.Fatalf("infix.Operator is not '*'. got=%s", infix.Operator)
+	}
+
+	infix, ok = array.Elements[2].(*ast.InfixExpression)
+	if !ok {
+		t.Fatalf("array.Elements[2] is not ast.InfixExpression. got=%T", array.Elements[2])
+	}
+	if infix.Operator != "+" {
+		t.Fatalf("infix.Operator is not '+'. got=%s", infix.Operator)
+	}
+}
+
+func TestEmptyArrayLiteral(t *testing.T) {
+	input := "[]"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
+			program.Statements[0])
+	}
+
+	array, ok := stmt.Expression.(*ast.ArrayLiteral)
+	if !ok {
+		t.Fatalf("exp is not ast.ArrayLiteral. got=%T", stmt.Expression)
+	}
+
+	if len(array.Elements) != 0 {
+		t.Fatalf("len(array.Elements) not 0. got=%d", len(array.Elements))
+	}
+}
+
+func TestIndexExpressionParsing(t *testing.T) {
+	input := "myArray[1 + 1]"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
+			program.Statements[0])
+	}
+
+	indexExp, ok := stmt.Expression.(*ast.IndexExpression)
+	if !ok {
+		t.Fatalf("exp is not ast.IndexExpression. got=%T", stmt.Expression)
+	}
+
+	ident, ok := indexExp.Left.(*ast.Identifier)
+	if !ok {
+		t.Fatalf("indexExp.Left is not ast.Identifier. got=%T", indexExp.Left)
+	}
+	if ident.Value != "myArray" {
+		t.Fatalf("ident.Value is not 'myArray'. got=%s", ident.Value)
+	}
+
+	infix, ok := indexExp.Index.(*ast.InfixExpression)
+	if !ok {
+		t.Fatalf("indexExp.Index is not ast.InfixExpression. got=%T", indexExp.Index)
+	}
+	if infix.Operator != "+" {
+		t.Fatalf("infix.Operator is not '+'. got=%s", infix.Operator)
+	}
+}
+
+func testNumberLiteral(t *testing.T, exp ast.Expression, value string) {
+	num, ok := exp.(*ast.NumberLiteral)
+	if !ok {
+		t.Fatalf("exp is not ast.NumberLiteral. got=%T", exp)
+	}
+	if num.Value != value {
+		t.Fatalf("num.Value is not %s. got=%s", value, num.Value)
+	}
+}
