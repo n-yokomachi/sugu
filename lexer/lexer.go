@@ -6,9 +6,10 @@ import (
 
 type Lexer struct {
 	input        string
-	position     int  // 現在の位置（現在の文字を指す）
-	readPosition int  // 次の位置（現在の文字の次を指す）
-	ch           byte // 現在検査中の文字
+	position     int    // 現在の位置（現在の文字を指す）
+	readPosition int    // 次の位置（現在の文字の次を指す）
+	ch           byte   // 現在検査中の文字
+	stringError  string // 文字列パース中のエラー
 }
 
 func New(input string) *Lexer {
@@ -118,8 +119,14 @@ func (l *Lexer) NextToken() token.Token {
 	case ']':
 		tok = newToken(token.RBRACKET, l.ch)
 	case '"':
-		tok.Type = token.STRING
+		l.stringError = "" // エラーをリセット
 		tok.Literal = l.readString()
+		if l.stringError != "" {
+			tok.Type = token.ILLEGAL
+			tok.Literal = l.stringError
+		} else {
+			tok.Type = token.STRING
+		}
 	case 0:
 		tok.Literal = ""
 		tok.Type = token.EOF
@@ -220,9 +227,14 @@ func (l *Lexer) readString() string {
 				result = append(result, '"')
 			case '\\':
 				result = append(result, '\\')
+			case 0:
+				// バックスラッシュ直後にEOF
+				l.stringError = "unexpected end of string after \\"
+				return string(result)
 			default:
-				// 不明なエスケープシーケンスはそのまま
-				result = append(result, '\\', l.ch)
+				// 不明なエスケープシーケンス
+				l.stringError = "unknown escape sequence: \\" + string(l.ch)
+				return string(result)
 			}
 		} else {
 			result = append(result, l.ch)

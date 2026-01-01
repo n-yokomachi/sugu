@@ -1,6 +1,11 @@
 package object
 
-import "testing"
+import (
+	"math"
+	"sugu/ast"
+	"sugu/token"
+	"testing"
+)
 
 func TestNumberInspect(t *testing.T) {
 	tests := []struct {
@@ -92,5 +97,84 @@ func TestBuiltinInspect(t *testing.T) {
 	}
 	if b.Type() != BUILTIN_OBJ {
 		t.Errorf("Builtin.Type() wrong. got=%s", b.Type())
+	}
+}
+
+func TestFunctionInspect(t *testing.T) {
+	// 名前付き関数のテスト
+	namedFn := &Function{
+		Name: "add",
+		Parameters: []*ast.Identifier{
+			{Token: token.Token{Type: token.IDENT, Literal: "a"}, Value: "a"},
+			{Token: token.Token{Type: token.IDENT, Literal: "b"}, Value: "b"},
+		},
+		Body: &ast.BlockStatement{},
+		Env:  nil,
+	}
+	expectedNamed := "func add(a, b) => { ... }"
+	if namedFn.Inspect() != expectedNamed {
+		t.Errorf("Function.Inspect() wrong for named function. got=%s, want=%s",
+			namedFn.Inspect(), expectedNamed)
+	}
+	if namedFn.Type() != FUNCTION_OBJ {
+		t.Errorf("Function.Type() wrong. got=%s", namedFn.Type())
+	}
+
+	// 無名関数のテスト
+	anonFn := &Function{
+		Name: "",
+		Parameters: []*ast.Identifier{
+			{Token: token.Token{Type: token.IDENT, Literal: "x"}, Value: "x"},
+		},
+		Body: &ast.BlockStatement{},
+		Env:  nil,
+	}
+	expectedAnon := "func(x) => { ... }"
+	if anonFn.Inspect() != expectedAnon {
+		t.Errorf("Function.Inspect() wrong for anonymous function. got=%s, want=%s",
+			anonFn.Inspect(), expectedAnon)
+	}
+
+	// パラメータなしの関数
+	noParamFn := &Function{
+		Name:       "greet",
+		Parameters: []*ast.Identifier{},
+		Body:       &ast.BlockStatement{},
+		Env:        nil,
+	}
+	expectedNoParam := "func greet() => { ... }"
+	if noParamFn.Inspect() != expectedNoParam {
+		t.Errorf("Function.Inspect() wrong for no-param function. got=%s, want=%s",
+			noParamFn.Inspect(), expectedNoParam)
+	}
+}
+
+func TestNumberInspectLargeValues(t *testing.T) {
+	tests := []struct {
+		value    float64
+		expected string
+	}{
+		// 大きな整数値（int64の範囲内）
+		{1e15, "1000000000000000"},
+		// 非常に大きな値（int64で正確に表現できない）
+		{1e20, "1e+20"},
+		{1e19, "1e+19"},
+		// NaN と Infinity
+		{math.Inf(1), "+Inf"},
+		{math.Inf(-1), "-Inf"},
+	}
+
+	for _, tt := range tests {
+		n := &Number{Value: tt.value}
+		if n.Inspect() != tt.expected {
+			t.Errorf("Number.Inspect() for %v wrong. got=%s, want=%s",
+				tt.value, n.Inspect(), tt.expected)
+		}
+	}
+
+	// NaNは特別なテスト（NaN != NaN なので）
+	nanNum := &Number{Value: math.NaN()}
+	if nanNum.Inspect() != "NaN" {
+		t.Errorf("Number.Inspect() for NaN wrong. got=%s, want=NaN", nanNum.Inspect())
 	}
 }

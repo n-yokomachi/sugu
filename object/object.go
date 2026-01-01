@@ -2,6 +2,7 @@ package object
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"sugu/ast"
 )
@@ -34,7 +35,9 @@ type Number struct {
 func (n *Number) Type() ObjectType { return NUMBER_OBJ }
 func (n *Number) Inspect() string {
 	// 整数の場合は小数点以下を表示しない
-	if n.Value == float64(int64(n.Value)) {
+	// math.Truncを使用して正確に判定し、int64の範囲内かもチェック
+	if math.Trunc(n.Value) == n.Value &&
+		n.Value >= math.MinInt64 && n.Value <= math.MaxInt64 {
 		return fmt.Sprintf("%d", int64(n.Value))
 	}
 	return fmt.Sprintf("%g", n.Value)

@@ -50,20 +50,7 @@ type NumberLiteral struct {
 
 ## Parser パッケージ
 
-### 1. 変数シャドウイングの問題
-```go
-// parser.go:195-198
-func (p *Parser) peekPrecedence() int {
-    if p, ok := precedences[p.peekToken.Type]; ok {  // p がシャドウされている
-        return p
-    }
-    return LOWEST
-}
-```
-- レシーバーの `p` が `precedences` の値でシャドウされている
-- 動作には問題ないが、可読性のため `prec` などに変更すべき
-
-### 2. エラーメッセージに位置情報がない
+### 1. エラーメッセージに位置情報がない
 ```go
 // parser.go:63-67
 func (p *Parser) peekError(t token.TokenType) {
@@ -73,7 +60,7 @@ func (p *Parser) peekError(t token.TokenType) {
 }
 ```
 
-### 3. for文の初期化式がセミコロンを2回消費
+### 2. for文の初期化式がセミコロンを2回消費
 ```go
 // parser.go:414-420
 if !p.peekTokenIs(token.SEMICOLON) {
@@ -86,7 +73,7 @@ if !p.peekTokenIs(token.SEMICOLON) {
 ```
 - `parseStatement` がセミコロンを消費するため、for文内でのセミコロン処理に注意が必要
 
-### 4. switch文のcaseブロックに明示的なブレース要求
+### 3. switch文のcaseブロックに明示的なブレース要求
 ```go
 // 現在: case 1: { ... } の形式のみ対応
 // JavaScript風: case 1: stmt; の形式は未対応
@@ -94,56 +81,28 @@ if !p.peekTokenIs(token.SEMICOLON) {
 - Sugu言語仕様としてブレース必須なら問題なし
 - 仕様との整合性確認が必要
 
-### 5. 配列・マップリテラルの未対応
+### 4. 配列・マップリテラルの未対応
 - Phase 1 スコープ外だが、将来的にサポートが必要
 - `parseExpression` の switch 文拡張で対応可能
 
 ## Object パッケージ
 
-### 1. Number.Inspect()の整数判定が不正確
-```go
-// object.go:35-36
-if n.Value == float64(int64(n.Value)) {
-    return fmt.Sprintf("%d", int64(n.Value))
-}
-```
-- 大きな整数（int64の範囲を超える値）で誤動作する可能性
-- `math.Trunc(n.Value) == n.Value` を使用するか、範囲チェックを追加すべき
-
-### 2. Function.Inspect()のテストがない
-- FunctionオブジェクトのInspect()メソッドがテストされていない
-- 名前付き関数と無名関数の両方をテストすべき
-
-### 3. const変数への再代入チェックがEnvironment側にない
+### 1. const変数への再代入チェックがEnvironment側にない
 - `SetConst`で設定した変数に`Set`で上書きできてしまう
 - Evaluator側でチェックする設計だが、Environment側でもガードがあると安全
 
 ## Lexer パッケージ
 
-### 1. 文字列のエスケープシーケンス未対応
-```go
-// 現在: "hello\"world" は正しく解析できない
-// 将来的に \n, \t, \" などのサポートが必要
-```
-
-### 2. Unicode非対応
+### 1. Unicode非対応
 ```go
 ch byte // 現在はASCIIのみ
 // 日本語変数名などを使う場合は rune に変更が必要
 ```
 
-### 3. エラー位置情報がない
+### 2. エラー位置情報がない
 - 行番号・列番号をTokenに持たせると、エラーメッセージが親切になる
 - Phase 1では必須ではないが、将来的に検討
 
-### 4. 負の数のリテラル
-- `-10` は現在 `MINUS` + `NUMBER` として解析される
-- 仕様上これで正しいが、明示的なテストがあると良い
-
-### 5. テストのエッジケース追加
-- 空入力
-- 未終端の文字列 `"hello`
-- 未終端の複数行コメント `//-- ...`
 
 ## Evaluator パッケージ
 
@@ -235,15 +194,7 @@ if !scanned {
 }
 ```
 
-### 5. コメント「赤色で表示」が実装されていない
-```go
-// repl.go:55-56
-// エラーの場合は赤色で表示
-if errObj, ok := evaluated.(*object.Error); ok {
-```
-- コメントには「赤色で表示」とあるが、実際にはANSIカラーコードが使われていない
-
-### 6. RunFile のファイル存在チェックのエラーメッセージ
+### 5. RunFile のファイル存在チェックのエラーメッセージ
 ```go
 // runner.go:17-19
 if err != nil {
@@ -252,10 +203,3 @@ if err != nil {
 ```
 - ファイルが存在しない場合とパーミッションエラーの区別ができない
 - 将来的に: より詳細なエラーメッセージを検討
-
-### 7. else if 構文が未対応
-```go
-// fizzbuzz.sugu では else { if (...) { } } とネストが必要
-// else if を直接サポートすると可読性が向上する
-```
-- パーサーで `else if` をパースして `else { if }` に変換する方法もある

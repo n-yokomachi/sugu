@@ -270,3 +270,156 @@ func TestStringEscapeSequences(t *testing.T) {
 		}
 	}
 }
+
+func TestEmptyInput(t *testing.T) {
+	l := New("")
+	tok := l.NextToken()
+
+	if tok.Type != token.EOF {
+		t.Errorf("empty input should return EOF, got=%s", tok.Type)
+	}
+}
+
+func TestUnterminatedString(t *testing.T) {
+	l := New(`"hello`)
+	tok := l.NextToken()
+
+	// 未終端の文字列はSTRINGトークンとして扱われる（内容は"hello"まで）
+	if tok.Type != token.STRING {
+		t.Errorf("unterminated string should return STRING, got=%s", tok.Type)
+	}
+	if tok.Literal != "hello" {
+		t.Errorf("unterminated string literal wrong. got=%q, want=%q", tok.Literal, "hello")
+	}
+}
+
+func TestUnterminatedMultilineComment(t *testing.T) {
+	l := New(`mut x = 10; //-- 未終端のコメント`)
+
+	// mut
+	tok := l.NextToken()
+	if tok.Type != token.MUT {
+		t.Errorf("expected MUT, got=%s", tok.Type)
+	}
+
+	// x
+	tok = l.NextToken()
+	if tok.Type != token.IDENT {
+		t.Errorf("expected IDENT, got=%s", tok.Type)
+	}
+
+	// =
+	tok = l.NextToken()
+	if tok.Type != token.ASSIGN {
+		t.Errorf("expected ASSIGN, got=%s", tok.Type)
+	}
+
+	// 10
+	tok = l.NextToken()
+	if tok.Type != token.NUMBER {
+		t.Errorf("expected NUMBER, got=%s", tok.Type)
+	}
+
+	// ;
+	tok = l.NextToken()
+	if tok.Type != token.SEMICOLON {
+		t.Errorf("expected SEMICOLON, got=%s", tok.Type)
+	}
+
+	// コメントはスキップされてEOFになるはず
+	tok = l.NextToken()
+	if tok.Type != token.EOF {
+		t.Errorf("expected EOF after unterminated comment, got=%s", tok.Type)
+	}
+}
+
+func TestNegativeNumberTokens(t *testing.T) {
+	// 負の数は MINUS + NUMBER として解析される
+	l := New(`-10`)
+
+	tok := l.NextToken()
+	if tok.Type != token.MINUS {
+		t.Errorf("expected MINUS, got=%s", tok.Type)
+	}
+	if tok.Literal != "-" {
+		t.Errorf("expected '-', got=%s", tok.Literal)
+	}
+
+	tok = l.NextToken()
+	if tok.Type != token.NUMBER {
+		t.Errorf("expected NUMBER, got=%s", tok.Type)
+	}
+	if tok.Literal != "10" {
+		t.Errorf("expected '10', got=%s", tok.Literal)
+	}
+}
+
+func TestWhitespaceOnly(t *testing.T) {
+	l := New("   \t\n\r  ")
+	tok := l.NextToken()
+
+	if tok.Type != token.EOF {
+		t.Errorf("whitespace-only input should return EOF, got=%s", tok.Type)
+	}
+}
+
+func TestIllegalCharacters(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"@", "@"},
+		{"#", "#"},
+		{"$", "$"},
+		{"~", "~"},
+	}
+
+	for _, tt := range tests {
+		l := New(tt.input)
+		tok := l.NextToken()
+
+		if tok.Type != token.ILLEGAL {
+			t.Errorf("illegal character %q should return ILLEGAL, got=%s", tt.input, tok.Type)
+		}
+		if tok.Literal != tt.expected {
+			t.Errorf("illegal literal wrong. got=%s, want=%s", tok.Literal, tt.expected)
+		}
+	}
+}
+
+func TestUnknownEscapeSequence(t *testing.T) {
+	tests := []struct {
+		input           string
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{`"hello\xworld"`, token.ILLEGAL, "unknown escape sequence: \\x"},
+		{`"test\avalue"`, token.ILLEGAL, "unknown escape sequence: \\a"},
+		{`"foo\bbar"`, token.ILLEGAL, "unknown escape sequence: \\b"},
+	}
+
+	for _, tt := range tests {
+		l := New(tt.input)
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Errorf("input=%q: expected type %s, got=%s", tt.input, tt.expectedType, tok.Type)
+		}
+		if tok.Literal != tt.expectedLiteral {
+			t.Errorf("input=%q: expected literal %q, got=%q", tt.input, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
+func TestEscapeSequenceAtEOF(t *testing.T) {
+	// バックスラッシュ直後にEOF
+	l := New(`"hello\`)
+	tok := l.NextToken()
+
+	if tok.Type != token.ILLEGAL {
+		t.Errorf("expected ILLEGAL for escape at EOF, got=%s", tok.Type)
+	}
+	if tok.Literal != "unexpected end of string after \\" {
+		t.Errorf("unexpected literal: %q", tok.Literal)
+	}
+}
