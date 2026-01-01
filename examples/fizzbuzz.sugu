@@ -3,15 +3,11 @@
 for (mut i = 1; i <= 20; i = i + 1) {
     if (i % 15 == 0) {
         outln("FizzBuzz");
+    } else if (i % 3 == 0) {
+        outln("Fizz");
+    } else if (i % 5 == 0) {
+        outln("Buzz");
     } else {
-        if (i % 3 == 0) {
-            outln("Fizz");
-        } else {
-            if (i % 5 == 0) {
-                outln("Buzz");
-            } else {
-                outln(i);
-            }
-        }
+        outln(i);
     }
 }

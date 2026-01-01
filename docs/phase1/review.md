@@ -94,19 +94,29 @@ if !p.peekTokenIs(token.SEMICOLON) {
 - Sugu言語仕様としてブレース必須なら問題なし
 - 仕様との整合性確認が必要
 
-### 5. 論理演算子のテスト不足
-- `&&` と `||` は優先順位テーブルに定義されているが、専用のテストがない
-- 短絡評価のテストも将来追加すべき
-
-### 6. 代入式が未実装
-```go
-// 現在: x = 10; のような代入式は parseExpressionStatement でエラーになる可能性
-// 将来的に代入演算子のサポートを検討
-```
-
-### 7. 配列・マップリテラルの未対応
+### 5. 配列・マップリテラルの未対応
 - Phase 1 スコープ外だが、将来的にサポートが必要
 - `parseExpression` の switch 文拡張で対応可能
+
+## Object パッケージ
+
+### 1. Number.Inspect()の整数判定が不正確
+```go
+// object.go:35-36
+if n.Value == float64(int64(n.Value)) {
+    return fmt.Sprintf("%d", int64(n.Value))
+}
+```
+- 大きな整数（int64の範囲を超える値）で誤動作する可能性
+- `math.Trunc(n.Value) == n.Value` を使用するか、範囲チェックを追加すべき
+
+### 2. Function.Inspect()のテストがない
+- FunctionオブジェクトのInspect()メソッドがテストされていない
+- 名前付き関数と無名関数の両方をテストすべき
+
+### 3. const変数への再代入チェックがEnvironment側にない
+- `SetConst`で設定した変数に`Set`で上書きできてしまう
+- Evaluator側でチェックする設計だが、Environment側でもガードがあると安全
 
 ## Lexer パッケージ
 
@@ -134,3 +144,118 @@ ch byte // 現在はASCIIのみ
 - 空入力
 - 未終端の文字列 `"hello`
 - 未終端の複数行コメント `//-- ...`
+
+## Evaluator パッケージ
+
+### 1. break/continue の内部型が object.Object を実装
+```go
+// evaluator.go:616-624
+type breakValue struct{}
+func (b *breakValue) Type() object.ObjectType { return "BREAK" }
+func (b *breakValue) Inspect() string         { return "break" }
+```
+- これらは内部制御用であり、外部に公開されるべきではない
+- objectパッケージに移動するか、完全に内部実装として隠蔽すべき
+
+### 2. 無限ループの検出がない
+```go
+// while (true) { } や for (;;) { } で無限ループになる
+// 将来的に: 実行ステップ数やタイムアウトによる保護を検討
+```
+
+### 3. 引数の数チェックが関数呼び出し時にない
+```go
+// evaluator.go:541-550
+// 引数が多すぎる場合はエラーにならず、余分な引数は無視される
+// 引数が少ない場合はNULLで埋められる
+for paramIdx, param := range fn.Parameters {
+    if paramIdx < len(args) {
+        env.Set(param.Value, args[paramIdx])
+    } else {
+        env.Set(param.Value, NULL)
+    }
+}
+```
+- 仕様としてはこれで正しいが、警告を出すオプションがあると便利
+
+### 4. スタックオーバーフロー対策がない
+```go
+// 再帰関数で深すぎる呼び出しでスタックオーバーフローになる可能性
+// 将来的に: 呼び出し深度のトラッキングと制限を検討
+```
+
+### 5. 組み込み関数のテストが限定的
+```go
+// TestBuiltinFunctions では type() のみテスト
+// out, outln, in のテストがない（標準入出力を使うため難しい）
+// 将来的に: io.Writer/io.Reader を注入可能にしてテスト容易性を向上
+```
+
+### 6. エラーメッセージに位置情報がない
+```go
+// newError() は単にメッセージを返すのみ
+// 将来的に: ASTノードの位置情報を含めてエラーを生成すべき
+func newError(node ast.Node, format string, a ...interface{}) *object.Error
+```
+
+### 7. 剰余演算子が整数のみ対応
+```go
+// evaluator.go:320-323
+case "%":
+    return &object.Number{Value: float64(int64(leftVal) % int64(rightVal))}
+```
+- float64をint64にキャストしているため、小数点以下が失われる
+- `math.Mod` を使用して浮動小数点剰余に対応すべきか検討
+
+## REPL パッケージ
+
+### 1. 複数行入力に未対応
+```go
+// repl.go:26-28
+scanned := scanner.Scan()
+line := scanner.Text()
+```
+- 1行ずつしか入力できないため、複数行にわたる関数定義などが入力しづらい
+- 将来的に: 括弧のバランスをチェックして継続入力を促す機能を検討
+
+### 2. コマンド履歴機能がない
+- 上下矢印キーで過去の入力を呼び出せない
+- 将来的に: readline ライブラリの導入を検討
+
+### 3. 入力補完機能がない
+- キーワードや変数名の補完ができない
+- 将来的に: readline + カスタム補完ハンドラの実装を検討
+
+### 4. Scanner.Err() のチェックがない
+```go
+// repl.go:26-28
+scanned := scanner.Scan()
+if !scanned {
+    return  // scanner.Err() で入力エラーの原因を確認すべき
+}
+```
+
+### 5. コメント「赤色で表示」が実装されていない
+```go
+// repl.go:55-56
+// エラーの場合は赤色で表示
+if errObj, ok := evaluated.(*object.Error); ok {
+```
+- コメントには「赤色で表示」とあるが、実際にはANSIカラーコードが使われていない
+
+### 6. RunFile のファイル存在チェックのエラーメッセージ
+```go
+// runner.go:17-19
+if err != nil {
+    return fmt.Errorf("failed to read file: %w", err)
+}
+```
+- ファイルが存在しない場合とパーミッションエラーの区別ができない
+- 将来的に: より詳細なエラーメッセージを検討
+
+### 7. else if 構文が未対応
+```go
+// fizzbuzz.sugu では else { if (...) { } } とネストが必要
+// else if を直接サポートすると可読性が向上する
+```
+- パーサーで `else if` をパースして `else { if }` に変換する方法もある
