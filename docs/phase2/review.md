@@ -104,3 +104,56 @@ delete(m, "a");  // キー削除機能がない
 ```
 - 組み込み関数でのキー削除が未対応
 - Phase 2 Step 6 の組み込み関数拡張で検討
+
+---
+
+## PR #14: Add builtin functions for array and map operations
+
+### 概要
+配列・マップ操作用の組み込み関数を実装。
+
+### 将来の改善点
+
+#### 1. len() の文字列長がバイト単位
+```go
+// builtins.go:59-60
+case *object.String:
+    return &object.Number{Value: float64(len(arg.Value))}
+```
+- `len("あいう")` は 9 を返す（UTF-8 バイト数）
+- 文字数を返すには `[]rune` への変換が必要
+- Lexer の Unicode 対応と合わせて検討
+
+#### 2. pop() 関数が未実装
+```sugu
+mut arr = [1, 2, 3];
+pop(arr);  // 末尾要素を削除して返す機能がない
+```
+- push() はあるが pop() がない
+- 将来的に追加を検討
+
+#### 3. concat() / append() 関数が未実装
+```sugu
+mut arr1 = [1, 2];
+mut arr2 = [3, 4];
+concat(arr1, arr2);  // 配列の結合機能がない
+```
+- 複数配列の結合は現在できない
+- `+` 演算子での結合も未対応
+
+#### 4. contains() / includes() 関数が未実装
+```sugu
+mut arr = [1, 2, 3];
+contains(arr, 2);  // 要素の存在確認機能がない
+```
+- 配列・マップの要素存在確認が組み込みでできない
+
+#### 5. keys()/values() の順序が不定
+```go
+// builtins.go:145-147
+for _, pair := range mapObj.Pairs {
+    keys = append(keys, pair.Key)
+}
+```
+- Go の map イテレーションと同様に順序が保証されない
+- テストでは len() で要素数のみ確認する工夫が必要
