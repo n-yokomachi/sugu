@@ -163,6 +163,7 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 const (
 	_ int = iota
 	LOWEST
+	ASSIGN      // =
 	LOGICAL_OR  // ||
 	LOGICAL_AND // &&
 	EQUALS      // ==
@@ -175,6 +176,7 @@ const (
 
 // 優先順位テーブル
 var precedences = map[token.TokenType]int{
+	token.ASSIGN:   ASSIGN,
 	token.OR:       LOGICAL_OR,
 	token.AND:      LOGICAL_AND,
 	token.EQ:       EQUALS,
@@ -238,6 +240,14 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	// 中置式のパース
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		switch p.peekToken.Type {
+		case token.ASSIGN:
+			// 代入式は左辺が識別子の場合のみ有効
+			ident, ok := leftExp.(*ast.Identifier)
+			if !ok {
+				return leftExp
+			}
+			p.nextToken()
+			leftExp = p.parseAssignExpression(ident)
 		case token.PLUS, token.MINUS, token.ASTERISK, token.SLASH, token.PERCENT,
 			token.EQ, token.NOT_EQ, token.LT, token.GT, token.LT_EQ, token.GT_EQ,
 			token.AND, token.OR:
@@ -263,6 +273,19 @@ func (p *Parser) parsePrefixExpression() ast.Expression {
 
 	p.nextToken()
 	expression.Right = p.parseExpression(PREFIX)
+
+	return expression
+}
+
+// parseAssignExpression は代入式をパース
+func (p *Parser) parseAssignExpression(name *ast.Identifier) ast.Expression {
+	expression := &ast.AssignExpression{
+		Token: p.curToken,
+		Name:  name,
+	}
+
+	p.nextToken()
+	expression.Value = p.parseExpression(ASSIGN)
 
 	return expression
 }

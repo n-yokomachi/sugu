@@ -139,6 +139,23 @@ type CallExpression struct {
 	Arguments []Expression
 }
 
+// AssignExpression は代入式（x = 10）
+type AssignExpression struct {
+	Token token.Token // '=' トークン
+	Name  *Identifier
+	Value Expression
+}
+
+func (ae *AssignExpression) expressionNode()      {}
+func (ae *AssignExpression) TokenLiteral() string { return ae.Token.Literal }
+func (ae *AssignExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(ae.Name.String())
+	out.WriteString(" = ")
+	out.WriteString(ae.Value.String())
+	return out.String()
+}
+
 func (ce *CallExpression) expressionNode()      {}
 func (ce *CallExpression) TokenLiteral() string { return ce.Token.Literal }
 func (ce *CallExpression) String() string {

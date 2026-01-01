@@ -1,0 +1,520 @@
+package evaluator
+
+import (
+	"sugu/lexer"
+	"sugu/object"
+	"sugu/parser"
+	"testing"
+)
+
+func TestEvalNumberExpression(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"5", 5},
+		{"10", 10},
+		{"-5", -5},
+		{"-10", -10},
+		{"5 + 5 + 5 + 5 - 10", 10},
+		{"2 * 2 * 2 * 2 * 2", 32},
+		{"-50 + 100 + -50", 0},
+		{"5 * 2 + 10", 20},
+		{"5 + 2 * 10", 25},
+		{"20 + 2 * -10", 0},
+		{"50 / 2 * 2 + 10", 60},
+		{"2 * (5 + 10)", 30},
+		{"3 * 3 * 3 + 10", 37},
+		{"3 * (3 * 3) + 10", 37},
+		{"(5 + 10 * 2 + 15 / 3) * 2 + -10", 50},
+		{"10 % 3", 1},
+		{"10 % 5", 0},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestEvalBooleanExpression(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"true", true},
+		{"false", false},
+		{"1 < 2", true},
+		{"1 > 2", false},
+		{"1 < 1", false},
+		{"1 > 1", false},
+		{"1 == 1", true},
+		{"1 != 1", false},
+		{"1 == 2", false},
+		{"1 != 2", true},
+		{"1 <= 1", true},
+		{"1 >= 1", true},
+		{"1 <= 2", true},
+		{"2 >= 1", true},
+		{"true == true", true},
+		{"false == false", true},
+		{"true == false", false},
+		{"true != false", true},
+		{"false != true", true},
+		{"(1 < 2) == true", true},
+		{"(1 < 2) == false", false},
+		{"(1 > 2) == true", false},
+		{"(1 > 2) == false", true},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testBooleanObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestBangOperator(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{"!true", false},
+		{"!false", true},
+		{"!5", false},
+		{"!!true", true},
+		{"!!false", false},
+		{"!!5", true},
+		{"!null", true},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testBooleanObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestStringLiteral(t *testing.T) {
+	input := `"Hello World!"`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if str.Value != "Hello World!" {
+		t.Errorf("String has wrong value. got=%q", str.Value)
+	}
+}
+
+func TestStringConcatenation(t *testing.T) {
+	input := `"Hello" + " " + "World!"`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if str.Value != "Hello World!" {
+		t.Errorf("String has wrong value. got=%q", str.Value)
+	}
+}
+
+func TestNullLiteral(t *testing.T) {
+	input := "null"
+
+	evaluated := testEval(input)
+	if evaluated != NULL {
+		t.Errorf("object is not NULL. got=%T (%+v)", evaluated, evaluated)
+	}
+}
+
+func TestIfElseExpressions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"if (true) { 10 }", 10},
+		{"if (false) { 10 }", nil},
+		{"if (1) { 10 }", 10},
+		{"if (1 < 2) { 10 }", 10},
+		{"if (1 > 2) { 10 }", nil},
+		{"if (1 > 2) { 10 } else { 20 }", 20},
+		{"if (1 < 2) { 10 } else { 20 }", 10},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		integer, ok := tt.expected.(int)
+		if ok {
+			testNumberObject(t, evaluated, float64(integer))
+		} else {
+			testNullObject(t, evaluated)
+		}
+	}
+}
+
+func TestReturnStatements(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"return 10;", 10},
+		{"return 10; 9;", 10},
+		{"return 2 * 5; 9;", 10},
+		{"9; return 2 * 5; 9;", 10},
+		{`
+if (10 > 1) {
+  if (10 > 1) {
+    return 10;
+  }
+  return 1;
+}
+`, 10},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestErrorHandling(t *testing.T) {
+	tests := []struct {
+		input           string
+		expectedMessage string
+	}{
+		{
+			"5 + true;",
+			"type mismatch: NUMBER + BOOLEAN",
+		},
+		{
+			"5 + true; 5;",
+			"type mismatch: NUMBER + BOOLEAN",
+		},
+		{
+			"-true",
+			"unknown operator: -BOOLEAN",
+		},
+		{
+			"true + false;",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"5; true + false; 5",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"if (10 > 1) { true + false; }",
+			"unknown operator: BOOLEAN + BOOLEAN",
+		},
+		{
+			"foobar",
+			"identifier not found: foobar",
+		},
+		{
+			`"Hello" - "World"`,
+			"unknown operator: STRING - STRING",
+		},
+		{
+			"10 / 0",
+			"division by zero",
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("no error object returned. got=%T(%+v)", evaluated, evaluated)
+			continue
+		}
+
+		if errObj.Message != tt.expectedMessage {
+			t.Errorf("wrong error message. expected=%q, got=%q", tt.expectedMessage, errObj.Message)
+		}
+	}
+}
+
+func TestVariableStatements(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"mut a = 5; a;", 5},
+		{"mut a = 5 * 5; a;", 25},
+		{"mut a = 5; mut b = a; b;", 5},
+		{"mut a = 5; mut b = a; mut c = a + b + 5; c;", 15},
+		{"const PI = 3.14; PI;", 3.14},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
+	}
+}
+
+func TestFunctionObject(t *testing.T) {
+	input := "func(x) => { x + 2; };"
+
+	evaluated := testEval(input)
+	fn, ok := evaluated.(*object.Function)
+	if !ok {
+		t.Fatalf("object is not Function. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	if len(fn.Parameters) != 1 {
+		t.Fatalf("function has wrong parameters. Parameters=%+v", fn.Parameters)
+	}
+
+	if fn.Parameters[0].String() != "x" {
+		t.Fatalf("parameter is not 'x'. got=%q", fn.Parameters[0])
+	}
+
+	expectedBody := "{ (x + 2) }"
+	if fn.Body.String() != expectedBody {
+		t.Fatalf("body is not %q. got=%q", expectedBody, fn.Body.String())
+	}
+}
+
+func TestFunctionApplication(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"func identity(x) => { x; }; identity(5);", 5},
+		{"func identity(x) => { return x; }; identity(5);", 5},
+		{"func double(x) => { x * 2; }; double(5);", 10},
+		{"func add(x, y) => { x + y; }; add(5, 5);", 10},
+		{"func add(x, y) => { x + y; }; add(5 + 5, add(5, 5));", 20},
+		{"func(x) => { x; }(5)", 5},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
+	}
+}
+
+func TestClosures(t *testing.T) {
+	input := `
+func newAdder(x) => {
+  func(y) => { x + y; };
+};
+
+mut addTwo = newAdder(2);
+addTwo(2);`
+
+	testNumberObject(t, testEval(input), 4)
+}
+
+func TestWhileStatement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{`
+mut x = 0;
+while (x < 5) {
+  x = x + 1;
+}
+x;
+`, 5},
+		{`
+mut sum = 0;
+mut i = 1;
+while (i <= 10) {
+  sum = sum + i;
+  i = i + 1;
+}
+sum;
+`, 55},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
+	}
+}
+
+func TestBreakStatement(t *testing.T) {
+	input := `
+mut x = 0;
+while (true) {
+  x = x + 1;
+  if (x == 5) {
+    break;
+  }
+}
+x;
+`
+	testNumberObject(t, testEval(input), 5)
+}
+
+func TestContinueStatement(t *testing.T) {
+	input := `
+mut sum = 0;
+mut i = 0;
+while (i < 10) {
+  i = i + 1;
+  if (i % 2 == 0) {
+    continue;
+  }
+  sum = sum + i;
+}
+sum;
+`
+	// 1 + 3 + 5 + 7 + 9 = 25
+	testNumberObject(t, testEval(input), 25)
+}
+
+func TestForStatement(t *testing.T) {
+	input := `
+mut sum = 0;
+for (mut i = 1; i <= 10; i = i + 1) {
+  sum = sum + i;
+}
+sum;
+`
+	testNumberObject(t, testEval(input), 55)
+}
+
+func TestSwitchStatement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{`
+mut x = 2;
+mut result = 0;
+switch (x) {
+  case 1: {
+    result = 10;
+  }
+  case 2: {
+    result = 20;
+  }
+  case 3: {
+    result = 30;
+  }
+}
+result;
+`, 20},
+		{`
+mut x = 5;
+mut result = 0;
+switch (x) {
+  case 1: {
+    result = 10;
+  }
+  default: {
+    result = 99;
+  }
+}
+result;
+`, 99},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
+	}
+}
+
+func TestLogicalOperators(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{"true && true", true},
+		{"true && false", false},
+		{"false && true", false},
+		{"false && false", false},
+		{"true || true", true},
+		{"true || false", true},
+		{"false || true", true},
+		{"false || false", false},
+		// 短絡評価
+		{"false && (1 / 0)", false}, // エラーにならない
+		{"true || (1 / 0)", true},   // エラーにならない
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case bool:
+			testBooleanObject(t, evaluated, expected)
+		}
+	}
+}
+
+func TestBuiltinFunctions(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`type(1)`, "NUMBER"},
+		{`type("hello")`, "STRING"},
+		{`type(true)`, "BOOLEAN"},
+		{`type(null)`, "NULL"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case string:
+			str, ok := evaluated.(*object.String)
+			if !ok {
+				t.Errorf("object is not String. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if str.Value != expected {
+				t.Errorf("wrong value. expected=%q, got=%q", expected, str.Value)
+			}
+		}
+	}
+}
+
+// ヘルパー関数
+
+func testEval(input string) object.Object {
+	l := lexer.New(input)
+	p := parser.New(l)
+	program := p.ParseProgram()
+	env := object.NewEnvironment()
+
+	return Eval(program, env)
+}
+
+func testNumberObject(t *testing.T, obj object.Object, expected float64) bool {
+	result, ok := obj.(*object.Number)
+	if !ok {
+		t.Errorf("object is not Number. got=%T (%+v)", obj, obj)
+		return false
+	}
+	if result.Value != expected {
+		t.Errorf("object has wrong value. got=%f, want=%f", result.Value, expected)
+		return false
+	}
+	return true
+}
+
+func testBooleanObject(t *testing.T, obj object.Object, expected bool) bool {
+	result, ok := obj.(*object.Boolean)
+	if !ok {
+		t.Errorf("object is not Boolean. got=%T (%+v)", obj, obj)
+		return false
+	}
+	if result.Value != expected {
+		t.Errorf("object has wrong value. got=%t, want=%t", result.Value, expected)
+		return false
+	}
+	return true
+}
+
+func testNullObject(t *testing.T, obj object.Object) bool {
+	if obj != NULL {
+		t.Errorf("object is not NULL. got=%T (%+v)", obj, obj)
+		return false
+	}
+	return true
+}
