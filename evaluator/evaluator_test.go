@@ -211,7 +211,7 @@ func TestErrorHandling(t *testing.T) {
 		},
 		{
 			"foobar",
-			"identifier not found: foobar",
+			"line 1, column 1: identifier not found: foobar",
 		},
 		{
 			`"Hello" - "World"`,
@@ -922,5 +922,167 @@ func TestMapUnhashableKey(t *testing.T) {
 	expectedMessage := "unusable as hash key: ARRAY"
 	if errObj.Message != expectedMessage {
 		t.Errorf("wrong error message. expected=%q, got=%q", expectedMessage, errObj.Message)
+	}
+}
+
+func TestErrorMessagesWithPosition(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			"foobar",
+			"line 1, column 1: identifier not found: foobar",
+		},
+		{
+			"mut x = 10;\nfoobar",
+			"line 2, column 1: identifier not found: foobar",
+		},
+		{
+			"const x = 10;\nx = 20;",
+			"line 2, column 3: cannot reassign to const variable: x",
+		},
+		{
+			"y = 10;",
+			"line 1, column 1: identifier not found: y",
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message.\nexpected=%q\ngot=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestBuiltinPop(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`pop([1, 2, 3])`, []int{1, 2}},
+		{`pop([1])`, []int{}},
+		{`pop([])`, nil},
+		{`mut arr = [1, 2]; pop(arr); arr`, []int{1, 2}}, // 元の配列は変更されない
+		{`pop(1)`, "argument to `pop` must be ARRAY, got NUMBER"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case []int:
+			arr, ok := evaluated.(*object.Array)
+			if !ok {
+				t.Errorf("object is not Array. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if len(arr.Elements) != len(expected) {
+				t.Errorf("wrong num of elements. got=%d, want=%d", len(arr.Elements), len(expected))
+				continue
+			}
+			for i, exp := range expected {
+				testNumberObject(t, arr.Elements[i], float64(exp))
+			}
+		case nil:
+			testNullObject(t, evaluated)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("object is not Error. got=%T (%+v)", evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestModuloWithFloats(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{"10 % 3", 1},
+		{"10.5 % 3", 1.5},
+		{"7.5 % 2.5", 0},
+		{"-10 % 3", -1},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestUnicodeStringLen(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected int
+	}{
+		{`len("hello")`, 5},
+		{`len("あいう")`, 3},
+		{`len("hello世界")`, 7},
+		{`len("")`, 0},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, float64(tt.expected))
+	}
+}
+
+func TestUnicodeStringIndex(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`"hello"[0]`, "h"},
+		{`"あいう"[0]`, "あ"},
+		{`"あいう"[1]`, "い"},
+		{`"あいう"[2]`, "う"},
+		{`"hello世界"[5]`, "世"},
+		{`"hello世界"[6]`, "界"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		result, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("object is not String. got=%T (%+v)", evaluated, evaluated)
+			continue
+		}
+		if result.Value != tt.expected {
+			t.Errorf("wrong value. expected=%q, got=%q", tt.expected, result.Value)
+		}
+	}
+}
+
+func TestMapInspectOrder(t *testing.T) {
+	// マップのInspect()が安定した順序を返すことを確認
+	input := `{"b": 2, "a": 1, "c": 3}`
+
+	// 複数回実行しても同じ結果になることを確認
+	for i := 0; i < 5; i++ {
+		evaluated := testEval(input)
+		result, ok := evaluated.(*object.Map)
+		if !ok {
+			t.Fatalf("object is not Map. got=%T (%+v)", evaluated, evaluated)
+		}
+
+		inspect := result.Inspect()
+		expected := "{a: 1, b: 2, c: 3}"
+		if inspect != expected {
+			t.Errorf("iteration %d: Map.Inspect() wrong. got=%q, want=%q", i, inspect, expected)
+		}
 	}
 }

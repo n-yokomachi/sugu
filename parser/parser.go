@@ -61,8 +61,8 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 
 // peekError はエラーメッセージを記録
 func (p *Parser) peekError(t token.TokenType) {
-	msg := fmt.Sprintf("expected next token to be %s, got %s instead",
-		t, p.peekToken.Type)
+	msg := fmt.Sprintf("line %d, column %d: expected next token to be %s, got %s instead",
+		p.peekToken.Line, p.peekToken.Column, t, p.peekToken.Type)
 	p.errors = append(p.errors, msg)
 }
 
@@ -238,7 +238,8 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	case token.LBRACE:
 		leftExp = p.parseMapLiteral()
 	default:
-		msg := fmt.Sprintf("no prefix parse function for %s found", p.curToken.Type)
+		msg := fmt.Sprintf("line %d, column %d: no prefix parse function for %s found",
+			p.curToken.Line, p.curToken.Column, p.curToken.Type)
 		p.errors = append(p.errors, msg)
 		return nil
 	}

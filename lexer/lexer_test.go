@@ -423,3 +423,93 @@ func TestEscapeSequenceAtEOF(t *testing.T) {
 		t.Errorf("unexpected literal: %q", tok.Literal)
 	}
 }
+
+func TestTokenPositions(t *testing.T) {
+	input := `mut x = 10;
+const y = 20;`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+		expectedLine    int
+		expectedColumn  int
+	}{
+		{token.MUT, "mut", 1, 1},
+		{token.IDENT, "x", 1, 5},
+		{token.ASSIGN, "=", 1, 7},
+		{token.NUMBER, "10", 1, 9},
+		{token.SEMICOLON, ";", 1, 11},
+		{token.CONST, "const", 2, 1},
+		{token.IDENT, "y", 2, 7},
+		{token.ASSIGN, "=", 2, 9},
+		{token.NUMBER, "20", 2, 11},
+		{token.SEMICOLON, ";", 2, 13},
+		{token.EOF, "", 2, 14},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q",
+				i, tt.expectedType, tok.Type)
+		}
+
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q",
+				i, tt.expectedLiteral, tok.Literal)
+		}
+
+		if tok.Line != tt.expectedLine {
+			t.Fatalf("tests[%d] - line wrong. expected=%d, got=%d (token=%q)",
+				i, tt.expectedLine, tok.Line, tok.Literal)
+		}
+
+		if tok.Column != tt.expectedColumn {
+			t.Fatalf("tests[%d] - column wrong. expected=%d, got=%d (token=%q)",
+				i, tt.expectedColumn, tok.Column, tok.Literal)
+		}
+	}
+}
+
+func TestMultiCharTokenPositions(t *testing.T) {
+	input := `x == y && z != w`
+
+	tests := []struct {
+		expectedType   token.TokenType
+		expectedLine   int
+		expectedColumn int
+	}{
+		{token.IDENT, 1, 1},  // x
+		{token.EQ, 1, 3},     // ==
+		{token.IDENT, 1, 6},  // y
+		{token.AND, 1, 8},    // &&
+		{token.IDENT, 1, 11}, // z
+		{token.NOT_EQ, 1, 13}, // !=
+		{token.IDENT, 1, 16}, // w
+		{token.EOF, 1, 17},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q",
+				i, tt.expectedType, tok.Type)
+		}
+
+		if tok.Line != tt.expectedLine {
+			t.Fatalf("tests[%d] - line wrong. expected=%d, got=%d (token type=%q)",
+				i, tt.expectedLine, tok.Line, tok.Type)
+		}
+
+		if tok.Column != tt.expectedColumn {
+			t.Fatalf("tests[%d] - column wrong. expected=%d, got=%d (token type=%q)",
+				i, tt.expectedColumn, tok.Column, tok.Type)
+		}
+	}
+}
