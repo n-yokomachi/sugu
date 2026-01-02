@@ -72,7 +72,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.NumberLiteral:
 		val, err := strconv.ParseFloat(node.Value, 64)
 		if err != nil {
-			return newError("could not parse %q as number", node.Value)
+			return newErrorWithPos(node.Token.Line, node.Token.Column, "could not parse %q as number", node.Value)
 		}
 		return &object.Number{Value: val}
 
@@ -212,7 +212,7 @@ func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object
 		return builtin
 	}
 
-	return newError("identifier not found: %s", node.Value)
+	return newErrorWithPos(node.Token.Line, node.Token.Column, "identifier not found: %s", node.Value)
 }
 
 // evalAssignExpression は代入式を評価
@@ -226,18 +226,18 @@ func evalAssignExpression(node *ast.AssignExpression, env *object.Environment) o
 
 	// 変数が存在するか確認
 	if _, ok := env.Get(name); !ok {
-		return newError("identifier not found: %s", name)
+		return newErrorWithPos(node.Name.Token.Line, node.Name.Token.Column, "identifier not found: %s", name)
 	}
 
 	// const変数への再代入をチェック
 	if env.IsConst(name) {
-		return newError("cannot reassign to const variable: %s", name)
+		return newErrorWithPos(node.Token.Line, node.Token.Column, "cannot reassign to const variable: %s", name)
 	}
 
 	// 変数が定義されているスコープで値を更新
 	result, ok := env.Update(name, val)
 	if !ok {
-		return newError("failed to update variable: %s", name)
+		return newErrorWithPos(node.Token.Line, node.Token.Column, "failed to update variable: %s", name)
 	}
 	return result
 }
@@ -621,6 +621,11 @@ func isEqual(a, b object.Object) bool {
 
 func newError(format string, a ...interface{}) *object.Error {
 	return &object.Error{Message: fmt.Sprintf(format, a...)}
+}
+
+func newErrorWithPos(line, column int, format string, a ...interface{}) *object.Error {
+	msg := fmt.Sprintf(format, a...)
+	return &object.Error{Message: fmt.Sprintf("line %d, column %d: %s", line, column, msg)}
 }
 
 // evalIndexExpression はインデックスアクセスを評価

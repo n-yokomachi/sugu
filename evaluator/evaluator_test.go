@@ -211,7 +211,7 @@ func TestErrorHandling(t *testing.T) {
 		},
 		{
 			"foobar",
-			"identifier not found: foobar",
+			"line 1, column 1: identifier not found: foobar",
 		},
 		{
 			`"Hello" - "World"`,
@@ -922,5 +922,43 @@ func TestMapUnhashableKey(t *testing.T) {
 	expectedMessage := "unusable as hash key: ARRAY"
 	if errObj.Message != expectedMessage {
 		t.Errorf("wrong error message. expected=%q, got=%q", expectedMessage, errObj.Message)
+	}
+}
+
+func TestErrorMessagesWithPosition(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			"foobar",
+			"line 1, column 1: identifier not found: foobar",
+		},
+		{
+			"mut x = 10;\nfoobar",
+			"line 2, column 1: identifier not found: foobar",
+		},
+		{
+			"const x = 10;\nx = 20;",
+			"line 2, column 3: cannot reassign to const variable: x",
+		},
+		{
+			"y = 10;",
+			"line 1, column 1: identifier not found: y",
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message.\nexpected=%q\ngot=%q", tt.input, tt.expected, errObj.Message)
+		}
 	}
 }

@@ -668,3 +668,43 @@ func testNumberLiteral(t *testing.T, exp ast.Expression, value string) {
 		t.Fatalf("num.Value is not %s. got=%s", value, num.Value)
 	}
 }
+
+func TestParserErrorsWithPosition(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{
+			"mut x",
+			"line 1, column 6: expected next token to be =, got EOF instead",
+		},
+		{
+			"if x { }",
+			"line 1, column 4: expected next token to be (, got IDENT instead",
+		},
+		{
+			"@",
+			"line 1, column 1: no prefix parse function for ILLEGAL found",
+		},
+		{
+			"mut x = 10;\n@",
+			"line 2, column 1: no prefix parse function for ILLEGAL found",
+		},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		p.ParseProgram()
+
+		errors := p.Errors()
+		if len(errors) == 0 {
+			t.Errorf("expected parser errors for input %q", tt.input)
+			continue
+		}
+
+		if errors[0] != tt.expected {
+			t.Errorf("wrong error message.\nexpected=%q\ngot=%q", tt.expected, errors[0])
+		}
+	}
+}

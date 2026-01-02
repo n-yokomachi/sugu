@@ -10,10 +10,12 @@ type Lexer struct {
 	readPosition int    // 次の位置（現在の文字の次を指す）
 	ch           byte   // 現在検査中の文字
 	stringError  string // 文字列パース中のエラー
+	line         int    // 現在の行番号（1から始まる）
+	column       int    // 現在の列番号（1から始まる）
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: input}
+	l := &Lexer{input: input, line: 1, column: 0}
 	l.readChar()
 	return l
 }
@@ -26,6 +28,14 @@ func (l *Lexer) readChar() {
 	}
 	l.position = l.readPosition
 	l.readPosition++
+
+	// 行番号・列番号を更新
+	if l.ch == '\n' {
+		l.line++
+		l.column = 0
+	} else {
+		l.column++
+	}
 }
 
 func (l *Lexer) peekChar() byte {
@@ -40,107 +50,109 @@ func (l *Lexer) NextToken() token.Token {
 
 	l.skipWhitespace()
 
+	// トークンの開始位置を記録
+	startLine := l.line
+	startColumn := l.column
+
 	switch l.ch {
 	case '=':
 		if l.peekChar() == '=' {
 			l.readChar()
-			tok = token.Token{Type: token.EQ, Literal: "=="}
+			tok = l.newTokenWithLiteral(token.EQ, "==", startLine, startColumn)
 		} else if l.peekChar() == '>' {
 			l.readChar()
-			tok = token.Token{Type: token.ARROW, Literal: "=>"}
+			tok = l.newTokenWithLiteral(token.ARROW, "=>", startLine, startColumn)
 		} else {
-			tok = newToken(token.ASSIGN, l.ch)
+			tok = l.newToken(token.ASSIGN, l.ch)
 		}
 	case '+':
-		tok = newToken(token.PLUS, l.ch)
+		tok = l.newToken(token.PLUS, l.ch)
 	case '-':
-		tok = newToken(token.MINUS, l.ch)
+		tok = l.newToken(token.MINUS, l.ch)
 	case '*':
-		tok = newToken(token.ASTERISK, l.ch)
+		tok = l.newToken(token.ASTERISK, l.ch)
 	case '/':
 		if l.peekChar() == '/' {
 			l.skipComment()
 			return l.NextToken()
 		}
-		tok = newToken(token.SLASH, l.ch)
+		tok = l.newToken(token.SLASH, l.ch)
 	case '%':
-		tok = newToken(token.PERCENT, l.ch)
+		tok = l.newToken(token.PERCENT, l.ch)
 	case '!':
 		if l.peekChar() == '=' {
 			l.readChar()
-			tok = token.Token{Type: token.NOT_EQ, Literal: "!="}
+			tok = l.newTokenWithLiteral(token.NOT_EQ, "!=", startLine, startColumn)
 		} else {
-			tok = newToken(token.BANG, l.ch)
+			tok = l.newToken(token.BANG, l.ch)
 		}
 	case '<':
 		if l.peekChar() == '=' {
 			l.readChar()
-			tok = token.Token{Type: token.LT_EQ, Literal: "<="}
+			tok = l.newTokenWithLiteral(token.LT_EQ, "<=", startLine, startColumn)
 		} else {
-			tok = newToken(token.LT, l.ch)
+			tok = l.newToken(token.LT, l.ch)
 		}
 	case '>':
 		if l.peekChar() == '=' {
 			l.readChar()
-			tok = token.Token{Type: token.GT_EQ, Literal: ">="}
+			tok = l.newTokenWithLiteral(token.GT_EQ, ">=", startLine, startColumn)
 		} else {
-			tok = newToken(token.GT, l.ch)
+			tok = l.newToken(token.GT, l.ch)
 		}
 	case '&':
 		if l.peekChar() == '&' {
 			l.readChar()
-			tok = token.Token{Type: token.AND, Literal: "&&"}
+			tok = l.newTokenWithLiteral(token.AND, "&&", startLine, startColumn)
 		} else {
-			tok = newToken(token.ILLEGAL, l.ch)
+			tok = l.newToken(token.ILLEGAL, l.ch)
 		}
 	case '|':
 		if l.peekChar() == '|' {
 			l.readChar()
-			tok = token.Token{Type: token.OR, Literal: "||"}
+			tok = l.newTokenWithLiteral(token.OR, "||", startLine, startColumn)
 		} else {
-			tok = newToken(token.ILLEGAL, l.ch)
+			tok = l.newToken(token.ILLEGAL, l.ch)
 		}
 	case ',':
-		tok = newToken(token.COMMA, l.ch)
+		tok = l.newToken(token.COMMA, l.ch)
 	case ';':
-		tok = newToken(token.SEMICOLON, l.ch)
+		tok = l.newToken(token.SEMICOLON, l.ch)
 	case ':':
-		tok = newToken(token.COLON, l.ch)
+		tok = l.newToken(token.COLON, l.ch)
 	case '(':
-		tok = newToken(token.LPAREN, l.ch)
+		tok = l.newToken(token.LPAREN, l.ch)
 	case ')':
-		tok = newToken(token.RPAREN, l.ch)
+		tok = l.newToken(token.RPAREN, l.ch)
 	case '{':
-		tok = newToken(token.LBRACE, l.ch)
+		tok = l.newToken(token.LBRACE, l.ch)
 	case '}':
-		tok = newToken(token.RBRACE, l.ch)
+		tok = l.newToken(token.RBRACE, l.ch)
 	case '[':
-		tok = newToken(token.LBRACKET, l.ch)
+		tok = l.newToken(token.LBRACKET, l.ch)
 	case ']':
-		tok = newToken(token.RBRACKET, l.ch)
+		tok = l.newToken(token.RBRACKET, l.ch)
 	case '"':
 		l.stringError = "" // エラーをリセット
-		tok.Literal = l.readString()
+		literal := l.readString()
 		if l.stringError != "" {
-			tok.Type = token.ILLEGAL
-			tok.Literal = l.stringError
+			tok = l.newTokenWithLiteral(token.ILLEGAL, l.stringError, startLine, startColumn)
 		} else {
-			tok.Type = token.STRING
+			tok = l.newTokenWithLiteral(token.STRING, literal, startLine, startColumn)
 		}
 	case 0:
-		tok.Literal = ""
-		tok.Type = token.EOF
+		tok = l.newTokenWithLiteral(token.EOF, "", startLine, startColumn)
 	default:
 		if isLetter(l.ch) {
-			tok.Literal = l.readIdentifier()
-			tok.Type = token.LookupIdent(tok.Literal)
+			literal := l.readIdentifier()
+			tok = l.newTokenWithLiteral(token.LookupIdent(literal), literal, startLine, startColumn)
 			return tok
 		} else if isDigit(l.ch) {
-			tok.Literal = l.readNumber()
-			tok.Type = token.NUMBER
+			literal := l.readNumber()
+			tok = l.newTokenWithLiteral(token.NUMBER, literal, startLine, startColumn)
 			return tok
 		} else {
-			tok = newToken(token.ILLEGAL, l.ch)
+			tok = l.newToken(token.ILLEGAL, l.ch)
 		}
 	}
 
@@ -253,6 +265,10 @@ func isDigit(ch byte) bool {
 	return '0' <= ch && ch <= '9'
 }
 
-func newToken(tokenType token.TokenType, ch byte) token.Token {
-	return token.Token{Type: tokenType, Literal: string(ch)}
+func (l *Lexer) newToken(tokenType token.TokenType, ch byte) token.Token {
+	return token.Token{Type: tokenType, Literal: string(ch), Line: l.line, Column: l.column}
+}
+
+func (l *Lexer) newTokenWithLiteral(tokenType token.TokenType, literal string, line, column int) token.Token {
+	return token.Token{Type: tokenType, Literal: literal, Line: line, Column: column}
 }
