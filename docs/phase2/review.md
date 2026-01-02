@@ -157,3 +157,60 @@ for _, pair := range mapObj.Pairs {
 ```
 - Go の map イテレーションと同様に順序が保証されない
 - テストでは len() で要素数のみ確認する工夫が必要
+
+---
+
+## PR #15: Add position information (line/column) to error messages
+
+### 概要
+エラーメッセージに行番号・列番号を追加し、デバッグを容易にする。
+
+### 将来の改善点
+
+#### 1. 一部のEvaluatorエラーに位置情報が未適用
+```go
+// evaluator.go の演算子エラー
+return newError("unknown operator: %s %s %s", left.Type(), operator, right.Type())
+return newError("type mismatch: %s %s %s", left.Type(), operator, right.Type())
+return newError("division by zero")
+```
+- 演算子関連のエラー（型の不一致、ゼロ除算など）には位置情報が含まれていない
+- これらのエラーは現在ASTノードを受け取っていないため、リファクタリングが必要
+- 優先度は低いが、将来的に対応を検討
+
+#### 2. 組み込み関数のエラーに位置情報がない
+```go
+// builtins.go
+return newError("wrong number of arguments. got=%d, want=1", len(args))
+return newError("argument to `len` not supported, got %s", args[0].Type())
+```
+- 組み込み関数はASTノードにアクセスできないため、位置情報を持てない
+- 呼び出し元のCallExpressionから位置情報を渡す仕組みが必要
+
+#### 3. コメント内での改行カウント
+```go
+// lexer.go:32-38
+if l.ch == '\n' {
+    l.line++
+    l.column = 0
+}
+```
+- 複数行コメント `//-- ... --//` 内の改行も行番号としてカウントされる
+- 現在の挙動は正しいが、コメント終了後のトークン位置が正確であることを確認する必要がある
+
+#### 4. タブ文字の列カウント
+```go
+// lexer.go:37
+l.column++
+```
+- タブ文字も1列としてカウントされる
+- エディタによっては4〜8スペースとして表示されるため、列番号がずれる可能性
+- 仕様として問題なし（多くの言語で同様の実装）
+
+#### 5. ASTノードへの位置情報の直接保持
+```go
+// 現在はTokenから位置情報を取得
+node.Token.Line, node.Token.Column
+```
+- 各ASTノードにToken経由でアクセスしているが、直接Line/Columnフィールドを持つ方が明確
+- 現在の実装でも動作に問題はない
