@@ -18,7 +18,15 @@
       "Bash(git pull:*)",
       "Skill(create-feature-branch)",
       "Skill(create-feature-branch:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(gh pr view:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr review:*)",
+      "Bash(cat:*)",
+      "Bash(GOOS=darwin GOARCH=arm64 go build:*)",
+      "Bash(GOOS=windows GOARCH=amd64 go build:*)",
+      "Bash(GOOS=darwin GOARCH=amd64 go build:*)",
+      "Bash(zip:*)"
     ]
   }
 }
