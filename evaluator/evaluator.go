@@ -2,6 +2,7 @@ package evaluator
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"sugu/ast"
 	"sugu/object"
@@ -331,7 +332,7 @@ func evalNumberInfixExpression(operator string, left, right object.Object) objec
 		if rightVal == 0 {
 			return newError("division by zero")
 		}
-		return &object.Number{Value: float64(int64(leftVal) % int64(rightVal))}
+		return &object.Number{Value: math.Mod(leftVal, rightVal)}
 	case "<":
 		return nativeBoolToBooleanObject(leftVal < rightVal)
 	case ">":
@@ -702,14 +703,16 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 // evalStringIndexExpression は文字列のインデックスアクセスを評価
 func evalStringIndexExpression(str, index object.Object) object.Object {
 	stringObject := str.(*object.String)
+	// runeに変換してマルチバイト文字に対応
+	runes := []rune(stringObject.Value)
 	idx := int64(index.(*object.Number).Value)
-	max := int64(len(stringObject.Value) - 1)
+	max := int64(len(runes) - 1)
 
 	if idx < 0 || idx > max {
 		return NULL
 	}
 
-	return &object.String{Value: string(stringObject.Value[idx])}
+	return &object.String{Value: string(runes[idx])}
 }
 
 func isError(obj object.Object) bool {

@@ -57,7 +57,8 @@ var builtins = map[string]*object.Builtin{
 			}
 			switch arg := args[0].(type) {
 			case *object.String:
-				return &object.Number{Value: float64(len(arg.Value))}
+				// 文字数を返す（バイト数ではなくrune数）
+				return &object.Number{Value: float64(len([]rune(arg.Value)))}
 			case *object.Array:
 				return &object.Number{Value: float64(len(arg.Elements))}
 			case *object.Map:
@@ -80,6 +81,24 @@ var builtins = map[string]*object.Builtin{
 			newElements := make([]object.Object, length+1)
 			copy(newElements, arr.Elements)
 			newElements[length] = args[1]
+			return &object.Array{Elements: newElements}
+		},
+	},
+	"pop": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("argument to `pop` must be ARRAY, got %s", args[0].Type())
+			}
+			arr := args[0].(*object.Array)
+			length := len(arr.Elements)
+			if length == 0 {
+				return NULL
+			}
+			newElements := make([]object.Object, length-1)
+			copy(newElements, arr.Elements[:length-1])
 			return &object.Array{Elements: newElements}
 		},
 	},

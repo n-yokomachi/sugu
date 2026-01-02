@@ -3,6 +3,7 @@ package object
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"sugu/ast"
 )
@@ -162,6 +163,8 @@ func (m *Map) Inspect() string {
 	for _, pair := range m.Pairs {
 		pairs = append(pairs, fmt.Sprintf("%s: %s", pair.Key.Inspect(), pair.Value.Inspect()))
 	}
+	// 順序を安定化するためソート
+	sort.Strings(pairs)
 	return "{" + strings.Join(pairs, ", ") + "}"
 }
 
