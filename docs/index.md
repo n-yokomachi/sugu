@@ -1,7 +1,5 @@
 # Sugu Language
 
-> 「すぐ実行できる」JavaScript風のインタプリタ言語
-
 ## Overview
 
 Sugu は学習目的で開発されたシンプルなインタプリタ言語です。
