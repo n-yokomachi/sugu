@@ -18,11 +18,11 @@
 |---|---|---|
 | number | 数値（整数・小数を統一） | `42`, `3.14`, `-10` |
 | string | 文字列（ダブルクォート） | `"hello"` |
-| string | テンプレートリテラル | `` `Hello ${name}` `` |
 | boolean | 真偽値 | `true`, `false` |
 | null | 値がないことを表す | `null` |
-| array | 配列（Phase 2以降） | `[1, 2, 3]` |
-| object | オブジェクト（Phase 2以降） | `{ key: "value" }` |
+| array | 配列 | `[1, 2, 3]` |
+| map | マップ（連想配列） | `{"key": "value"}` |
+| function | 関数 | `func(x) => { return x; }` |
 
 ## 変数宣言
 
@@ -45,11 +45,11 @@ name = "Other";     // エラー！
 
 | 演算子 | 意味 | 例 |
 |---|---|---|
-| `+` | 加算 | `1 + 2` → `3` |
-| `-` | 減算 | `5 - 3` → `2` |
+| `+` | 加算 / 文字列結合 | `1 + 2` → `3`, `"a" + "b"` → `"ab"` |
+| `-` | 減算 / 単項マイナス | `5 - 3` → `2`, `-10` |
 | `*` | 乗算 | `2 * 4` → `8` |
 | `/` | 除算 | `10 / 3` → `3.333...` |
-| `%` | 剰余 | `10 % 3` → `1` |
+| `%` | 剰余（浮動小数点対応） | `10 % 3` → `1`, `5.5 % 2.0` → `1.5` |
 
 ### 比較演算子
 
@@ -67,7 +67,7 @@ name = "Other";     // エラー！
 | 演算子 | 意味 | 例 |
 |---|---|---|
 | `&&` | AND | `true && false` → `false` |
-| `||` | OR | `true || false` → `true` |
+| `\|\|` | OR | `true \|\| false` → `true` |
 | `!` | NOT | `!true` → `false` |
 
 ## 制御構文
@@ -88,16 +88,19 @@ if (x > 0) {
 
 ```javascript
 switch (value) {
-    case 1:
+    case 1: {
         outln("one");
-        break;
-    case 2:
+    }
+    case 2: {
         outln("two");
-        break;
-    default:
+    }
+    default: {
         outln("other");
+    }
 }
 ```
+
+> 注: 各caseにはブレース `{}` が必要です。フォールスルーはありません。
 
 ### ループ
 
@@ -153,9 +156,93 @@ const result = add(1, 2);
 greet("Sugu");
 ```
 
+### 無名関数
+
+```javascript
+const double = func(x) => { return x * 2; };
+outln(double(5));  // 10
+```
+
 ### 注意
 - 1行での省略記法は禁止（可読性のため）
 - `{}` は必須
+
+## 配列
+
+### 配列リテラル
+
+```javascript
+const arr = [1, 2, 3, 4, 5];
+const mixed = [1, "two", true, null];
+const nested = [[1, 2], [3, 4]];
+```
+
+### インデックスアクセス
+
+```javascript
+const arr = [10, 20, 30];
+outln(arr[0]);  // 10
+outln(arr[2]);  // 30
+outln(arr[5]);  // null（範囲外）
+```
+
+> 注: 配列は不変です。要素の変更には組み込み関数を使用して新しい配列を作成します。
+
+## マップ
+
+### マップリテラル
+
+```javascript
+const person = {
+    "name": "Alice",
+    "age": 30,
+    "active": true
+};
+```
+
+### キーアクセス
+
+```javascript
+outln(person["name"]);  // Alice
+outln(person["age"]);   // 30
+outln(person["foo"]);   // null（存在しないキー）
+```
+
+### キーの型
+
+マップのキーには以下の型が使用できます：
+- string: `{"name": "value"}`
+- number: `{42: "value"}`
+- boolean: `{true: "value"}`
+
+## 文字列
+
+### 文字列リテラル
+
+```javascript
+const str = "Hello, World!";
+```
+
+### エスケープシーケンス
+
+| シーケンス | 意味 |
+|---|---|
+| `\n` | 改行 |
+| `\t` | タブ |
+| `\\` | バックスラッシュ |
+| `\"` | ダブルクォート |
+
+### インデックスアクセス
+
+```javascript
+const str = "Hello";
+outln(str[0]);  // H
+outln(str[4]);  // o
+
+// マルチバイト文字も正しく扱える
+const jp = "あいう";
+outln(jp[1]);   // い
+```
 
 ## コメント
 
@@ -172,10 +259,55 @@ mut x = 10; //-- インラインでも使える --//
 
 ## 組み込み関数
 
+### 入出力
+
 | 関数 | 説明 | 例 |
 |---|---|---|
-| `out(x)` | 出力（改行なし） | `out("Hello")` |
-| `outln(x)` | 出力（改行あり） | `outln("Hello")` |
+| `out(x, ...)` | 出力（改行なし） | `out("Hello")` |
+| `outln(x, ...)` | 出力（改行あり） | `outln("Hello")` |
 | `in()` | ユーザー入力を受け取る | `const name = in();` |
-| `type(x)` | 型を文字列で返す | `type(42)` → `"number"` |
-| `len(x)` | 長さを返す（Phase 2以降） | `len("abc")` → `3` |
+
+### 型と長さ
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `type(x)` | 型を文字列で返す | `type(42)` → `"NUMBER"` |
+| `len(x)` | 長さを返す（文字数） | `len("あいう")` → `3` |
+
+### 配列操作
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `push(arr, x)` | 末尾に追加した新配列を返す | `push([1,2], 3)` → `[1,2,3]` |
+| `pop(arr)` | 末尾を除いた新配列を返す | `pop([1,2,3])` → `[1,2]` |
+| `first(arr)` | 最初の要素を返す | `first([1,2,3])` → `1` |
+| `last(arr)` | 最後の要素を返す | `last([1,2,3])` → `3` |
+| `rest(arr)` | 最初を除いた新配列を返す | `rest([1,2,3])` → `[2,3]` |
+
+### マップ操作
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `keys(map)` | キーの配列を返す | `keys({"a":1})` → `["a"]` |
+| `values(map)` | 値の配列を返す | `values({"a":1})` → `[1]` |
+
+> 注: `keys()` と `values()` の順序は保証されません。
+
+## エラーメッセージ
+
+エラーメッセージには行番号と列番号が含まれます：
+
+```
+line 5, column 10: expected next token to be ), got EOF instead
+```
+
+## 予約語
+
+以下のキーワードは変数名として使用できません：
+
+```
+mut, const, func, return,
+if, else, switch, case, default,
+while, for, break, continue,
+true, false, null
+```
