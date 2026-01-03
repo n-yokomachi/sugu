@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/logo.png" alt="Sugu Logo" width="200">
+</p>
+
 # Sugu
 
 > A JavaScript-like interpreted language that runs "sugu" (immediately)

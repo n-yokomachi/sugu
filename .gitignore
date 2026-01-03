@@ -22,3 +22,9 @@ sugu
 .DS_Store
 Thumbs.db
 build/
+
+# temp files
+temp/
+
+# dist
+dist/

@@ -26,7 +26,12 @@
       "Bash(GOOS=darwin GOARCH=arm64 go build:*)",
       "Bash(GOOS=windows GOARCH=amd64 go build:*)",
       "Bash(GOOS=darwin GOARCH=amd64 go build:*)",
-      "Bash(zip:*)"
+      "Bash(zip:*)",
+      "Bash(mkdir:*)",
+      "Bash(go get:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File scripts/build.ps1)",
+      "Bash(powershell -ExecutionPolicy Bypass -File scripts/build-lambda.ps1)",
+      "Bash(git merge:*)"
     ]
   }
 }
