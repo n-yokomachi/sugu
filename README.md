@@ -6,6 +6,10 @@
 
 > A JavaScript-like interpreted language that runs "sugu" (immediately)
 
+## Documentation
+
+📖 **[Language Documentation](https://n-yokomachi.github.io/sugu/)**
+
 ## Overview
 
 Sugu is a simple interpreted language implemented in Go. It features JavaScript-like syntax and is ideal for learning and experimentation.
