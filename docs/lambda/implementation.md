@@ -47,30 +47,30 @@ Sugu インタプリタを AWS Lambda で動作させるための実装。
 ## 実装タスク
 
 ### Step 1: プロジェクト設定
-- [ ] `aws-lambda-go` SDK を `go.mod` に追加
-- [ ] `lambda/` ディレクトリを作成
+- [x] `aws-lambda-go` SDK を `go.mod` に追加
+- [x] `lambda/` ディレクトリを作成
 
 ### Step 2: Lambda 用組み込み関数
-- [ ] `lambda/builtins.go` を作成
-- [ ] `out`, `outln` を出力キャプチャ版に置き換え
-- [ ] `in` は Lambda 環境では使用不可としてエラーを返す
-- [ ] その他の組み込み関数は既存のものを再利用
+- [x] `lambda/builtins.go` を作成
+- [x] `out`, `outln` を出力キャプチャ版に置き換え
+- [x] `in` は Lambda 環境では使用不可としてエラーを返す
+- [x] その他の組み込み関数は既存のものを再利用
 
 ### Step 3: Lambda ハンドラー
-- [ ] `lambda/main.go` を作成
-- [ ] リクエストの JSON パース
-- [ ] Sugu コードの実行（lexer → parser → evaluator）
-- [ ] 出力のキャプチャとレスポンス生成
+- [x] `lambda/main.go` を作成
+- [x] リクエストの JSON パース
+- [x] Sugu コードの実行（lexer → parser → evaluator）
+- [x] 出力のキャプチャとレスポンス生成
 
 ### Step 4: ビルドスクリプト
-- [ ] Linux x86_64 向けクロスコンパイル設定
-- [ ] ZIP パッケージ作成スクリプト
+- [x] Linux x86_64 向けクロスコンパイル設定
+- [x] ZIP パッケージ作成スクリプト
 
 ### Step 5: テスト
-- [ ] `lambda/handler_test.go` を作成
-- [ ] 正常系テスト
-- [ ] エラー系テスト
-- [ ] 出力キャプチャのテスト
+- [x] `lambda/handler_test.go` を作成
+- [x] 正常系テスト
+- [x] エラー系テスト
+- [x] 出力キャプチャのテスト
 
 ---
 

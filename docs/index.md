@@ -9,7 +9,7 @@ JavaScript に似た構文を持ち、Go で実装されています。
 
 ```bash
 # ビルド
-go build -o sugu ./cmd/sugu
+go build -o sugu .
 
 # REPL を起動
 ./sugu
@@ -123,10 +123,18 @@ comment
 --//
 ```
 
+## AWS Lambda
+
+Sugu は AWS Lambda 上で実行できます。
+詳細は [AWS Lambda での Sugu 実行](lambda/usage.md) を参照。
+
+---
+
 ## Documentation
 
 - [Language Specification](specification.md) - 言語仕様
 - [Backlog](backlog.md) - 将来の改善予定
+- [AWS Lambda Usage](lambda/usage.md) - AWS Lambda での実行方法
 
 ## Architecture
 
@@ -138,7 +146,8 @@ sugu/
 ├── parser/     # Parsing
 ├── object/     # Object system
 ├── evaluator/  # Evaluation
-└── repl/       # REPL
+├── repl/       # REPL
+└── lambda/     # AWS Lambda runtime
 ```
 
 ## License
