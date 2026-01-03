@@ -31,7 +31,10 @@
       "Bash(go get:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File scripts/build.ps1)",
       "Bash(powershell -ExecutionPolicy Bypass -File scripts/build-lambda.ps1)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(git tag:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(ls:*)"
     ]
   }
 }

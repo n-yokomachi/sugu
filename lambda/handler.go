@@ -10,34 +10,24 @@ import (
 	"sugu/parser"
 )
 
-// Response は Lambda レスポンスの構造体
-type Response struct {
-	Output string  `json:"output"`
-	Result *string `json:"result"`
-	Error  *string `json:"error"`
-}
-
 // Handler は Lambda ハンドラー
 // event は任意の JSON で、Sugu の event 変数として渡される
-func Handler(ctx context.Context, event json.RawMessage) (Response, error) {
+// main.sugu の最後に評価された式の値がそのまま Lambda のレスポンスになる
+func Handler(ctx context.Context, event json.RawMessage) (interface{}, error) {
 	// main.sugu を読み込む
 	code, err := os.ReadFile("main.sugu")
 	if err != nil {
-		errMsg := "failed to read main.sugu: " + err.Error()
-		return Response{
-			Output: "",
-			Result: nil,
-			Error:  &errMsg,
-		}, nil
+		return map[string]string{"error": "failed to read main.sugu: " + err.Error()}, nil
 	}
 
 	return Execute(string(code), event)
 }
 
 // Execute は Sugu コードを実行し、結果を返す
-func Execute(code string, eventJSON json.RawMessage) (Response, error) {
+func Execute(code string, eventJSON json.RawMessage) (interface{}, error) {
 	// 出力キャプチャを作成
 	capture := &OutputCapture{}
+	_ = capture // outln の出力は Lambda では使用しないが、エラー防止のため保持
 
 	// Lambda 用組み込み関数を取得
 	lambdaBuiltins := NewLambdaBuiltins(capture)
@@ -51,12 +41,7 @@ func Execute(code string, eventJSON json.RawMessage) (Response, error) {
 	// event 変数を設定
 	eventObj, err := jsonToSuguObject(eventJSON)
 	if err != nil {
-		errMsg := "failed to parse event: " + err.Error()
-		return Response{
-			Output: "",
-			Result: nil,
-			Error:  &errMsg,
-		}, nil
+		return map[string]string{"error": "failed to parse event: " + err.Error()}, nil
 	}
 	env.Set("event", eventObj)
 
@@ -69,12 +54,7 @@ func Execute(code string, eventJSON json.RawMessage) (Response, error) {
 
 	// パースエラーのチェック
 	if len(p.Errors()) != 0 {
-		errMsg := p.Errors()[0]
-		return Response{
-			Output: "",
-			Result: nil,
-			Error:  &errMsg,
-		}, nil
+		return map[string]string{"error": p.Errors()[0]}, nil
 	}
 
 	// Evaluator
@@ -82,26 +62,11 @@ func Execute(code string, eventJSON json.RawMessage) (Response, error) {
 
 	// エラーチェック
 	if errObj, ok := result.(*object.Error); ok {
-		errMsg := errObj.Message
-		return Response{
-			Output: capture.String(),
-			Result: nil,
-			Error:  &errMsg,
-		}, nil
+		return map[string]string{"error": errObj.Message}, nil
 	}
 
-	// 結果を文字列に変換
-	var resultStr *string
-	if result != nil {
-		s := result.Inspect()
-		resultStr = &s
-	}
-
-	return Response{
-		Output: capture.String(),
-		Result: resultStr,
-		Error:  nil,
-	}, nil
+	// 結果を返す（return 文の値、または最後に評価された式の値）
+	return suguObjectToGoValue(result), nil
 }
 
 // jsonToSuguObject は JSON を Sugu の Object に変換する
@@ -147,5 +112,35 @@ func goValueToSuguObject(v interface{}) object.Object {
 		return &object.Map{Pairs: pairs}
 	default:
 		return &object.Null{}
+	}
+}
+
+// suguObjectToGoValue は Sugu の Object を Go の値に変換する
+func suguObjectToGoValue(obj object.Object) interface{} {
+	switch v := obj.(type) {
+	case *object.Null:
+		return nil
+	case *object.Boolean:
+		return v.Value
+	case *object.Number:
+		return v.Value
+	case *object.String:
+		return v.Value
+	case *object.Array:
+		result := make([]interface{}, len(v.Elements))
+		for i, elem := range v.Elements {
+			result[i] = suguObjectToGoValue(elem)
+		}
+		return result
+	case *object.Map:
+		result := make(map[string]interface{})
+		for _, pair := range v.Pairs {
+			if key, ok := pair.Key.(*object.String); ok {
+				result[key.Value] = suguObjectToGoValue(pair.Value)
+			}
+		}
+		return result
+	default:
+		return nil
 	}
 }

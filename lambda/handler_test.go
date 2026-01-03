@@ -13,56 +13,65 @@ func TestExecute_SimpleExpression(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "3" {
-		t.Errorf("expected result '3', got '%s'", *resp.Result)
+	if resp != float64(3) {
+		t.Errorf("expected 3, got %v", resp)
 	}
 }
 
-func TestExecute_OutputCapture(t *testing.T) {
-	code := `outln("Hello, Lambda!");`
+func TestExecute_ReturnString(t *testing.T) {
+	code := `"hello"`
 	resp, err := Execute(code, nil)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	expected := "Hello, Lambda!\n"
-	if resp.Output != expected {
-		t.Errorf("expected output %q, got %q", expected, resp.Output)
+	if resp != "hello" {
+		t.Errorf("expected 'hello', got %v", resp)
 	}
 }
 
-func TestExecute_MultipleOutputs(t *testing.T) {
-	code := `
-		outln("Line 1");
-		outln("Line 2");
-		out("No newline");
-	`
+func TestExecute_ReturnMap(t *testing.T) {
+	code := `{"status": "ok", "count": 42}`
 	resp, err := Execute(code, nil)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
+	resultMap, ok := resp.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", resp)
 	}
 
-	expected := "Line 1\nLine 2\nNo newline"
-	if resp.Output != expected {
-		t.Errorf("expected output %q, got %q", expected, resp.Output)
+	if resultMap["status"] != "ok" {
+		t.Errorf("expected status 'ok', got %v", resultMap["status"])
+	}
+
+	if resultMap["count"] != float64(42) {
+		t.Errorf("expected count 42, got %v", resultMap["count"])
+	}
+}
+
+func TestExecute_ReturnArray(t *testing.T) {
+	code := `[1, 2, 3]`
+	resp, err := Execute(code, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	resultArr, ok := resp.([]interface{})
+	if !ok {
+		t.Fatalf("expected array, got %T", resp)
+	}
+
+	if len(resultArr) != 3 {
+		t.Errorf("expected 3 elements, got %d", len(resultArr))
+	}
+
+	if resultArr[0] != float64(1) {
+		t.Errorf("expected first element 1, got %v", resultArr[0])
 	}
 }
 
@@ -78,20 +87,67 @@ func TestExecute_VariableAndExpression(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "30" {
-		t.Errorf("expected result '30', got '%s'", *resp.Result)
+	if resp != float64(30) {
+		t.Errorf("expected 30, got %v", resp)
 	}
 }
 
-func TestExecute_Function(t *testing.T) {
+func TestExecute_ParseError(t *testing.T) {
+	code := "1 +"
+	resp, err := Execute(code, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	resultMap, ok := resp.(map[string]string)
+	if !ok {
+		t.Fatalf("expected error map, got %T", resp)
+	}
+
+	if resultMap["error"] == "" {
+		t.Fatal("expected error message")
+	}
+}
+
+func TestExecute_RuntimeError(t *testing.T) {
+	code := "foo"
+	resp, err := Execute(code, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	resultMap, ok := resp.(map[string]string)
+	if !ok {
+		t.Fatalf("expected error map, got %T", resp)
+	}
+
+	if resultMap["error"] == "" {
+		t.Fatal("expected error message")
+	}
+}
+
+func TestExecute_InFunctionDisabled(t *testing.T) {
+	code := `in()`
+	resp, err := Execute(code, nil)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	resultMap, ok := resp.(map[string]string)
+	if !ok {
+		t.Fatalf("expected error map, got %T", resp)
+	}
+
+	expectedError := "in() is not available in Lambda environment"
+	if resultMap["error"] != expectedError {
+		t.Errorf("expected error %q, got %q", expectedError, resultMap["error"])
+	}
+}
+
+func TestExecute_FunctionCall(t *testing.T) {
 	code := `
 		func add(a, b) => {
 			return a + b;
@@ -104,137 +160,8 @@ func TestExecute_Function(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "12" {
-		t.Errorf("expected result '12', got '%s'", *resp.Result)
-	}
-}
-
-func TestExecute_ParseError(t *testing.T) {
-	code := "1 +"
-	resp, err := Execute(code, nil)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.Error == nil {
-		t.Fatal("expected error in response, got nil")
-	}
-
-	if resp.Result != nil {
-		t.Errorf("expected nil result, got '%s'", *resp.Result)
-	}
-}
-
-func TestExecute_RuntimeError(t *testing.T) {
-	code := "foo"
-	resp, err := Execute(code, nil)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.Error == nil {
-		t.Fatal("expected error in response, got nil")
-	}
-
-	if resp.Result != nil {
-		t.Errorf("expected nil result, got '%s'", *resp.Result)
-	}
-}
-
-func TestExecute_InFunctionDisabled(t *testing.T) {
-	code := `in()`
-	resp, err := Execute(code, nil)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.Error == nil {
-		t.Fatal("expected error in response, got nil")
-	}
-
-	expectedError := "in() is not available in Lambda environment"
-	if *resp.Error != expectedError {
-		t.Errorf("expected error %q, got %q", expectedError, *resp.Error)
-	}
-}
-
-func TestExecute_ComplexProgram(t *testing.T) {
-	code := `
-		func factorial(n) => {
-			if (n <= 1) {
-				return 1;
-			}
-			return n * factorial(n - 1);
-		}
-		outln(factorial(5));
-		factorial(5);
-	`
-	resp, err := Execute(code, nil)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	expectedOutput := "120\n"
-	if resp.Output != expectedOutput {
-		t.Errorf("expected output %q, got %q", expectedOutput, resp.Output)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "120" {
-		t.Errorf("expected result '120', got '%s'", *resp.Result)
-	}
-}
-
-func TestExecute_ArrayAndLoop(t *testing.T) {
-	code := `
-		mut arr = [1, 2, 3, 4, 5];
-		mut sum = 0;
-		for (mut i = 0; i < len(arr); i = i + 1) {
-			sum = sum + arr[i];
-		}
-		outln(sum);
-		sum;
-	`
-	resp, err := Execute(code, nil)
-
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	expectedOutput := "15\n"
-	if resp.Output != expectedOutput {
-		t.Errorf("expected output %q, got %q", expectedOutput, resp.Output)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "15" {
-		t.Errorf("expected result '15', got '%s'", *resp.Result)
+	if resp != float64(12) {
+		t.Errorf("expected 12, got %v", resp)
 	}
 }
 
@@ -265,16 +192,8 @@ func TestExecute_EventVariable(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "Taro" {
-		t.Errorf("expected result 'Taro', got '%s'", *resp.Result)
+	if resp != "Taro" {
+		t.Errorf("expected 'Taro', got %v", resp)
 	}
 }
 
@@ -288,16 +207,8 @@ func TestExecute_EventWithNumber(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "30" {
-		t.Errorf("expected result '30', got '%s'", *resp.Result)
+	if resp != float64(30) {
+		t.Errorf("expected 30, got %v", resp)
 	}
 }
 
@@ -311,16 +222,8 @@ func TestExecute_EventWithArray(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "banana" {
-		t.Errorf("expected result 'banana', got '%s'", *resp.Result)
+	if resp != "banana" {
+		t.Errorf("expected 'banana', got %v", resp)
 	}
 }
 
@@ -340,16 +243,8 @@ func TestExecute_EventWithBoolean(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "yes" {
-		t.Errorf("expected result 'yes', got '%s'", *resp.Result)
+	if resp != "yes" {
+		t.Errorf("expected 'yes', got %v", resp)
 	}
 }
 
@@ -361,16 +256,8 @@ func TestExecute_EventNull(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
-	}
-
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
-	}
-
-	if *resp.Result != "null" {
-		t.Errorf("expected result 'null', got '%s'", *resp.Result)
+	if resp != nil {
+		t.Errorf("expected nil, got %v", resp)
 	}
 }
 
@@ -384,15 +271,31 @@ func TestExecute_EventNestedObject(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Error != nil {
-		t.Fatalf("unexpected error in response: %s", *resp.Error)
+	if resp != "Hanako" {
+		t.Errorf("expected 'Hanako', got %v", resp)
+	}
+}
+
+func TestExecute_ReturnEventAsIs(t *testing.T) {
+	code := `event`
+	eventJSON := json.RawMessage(`{"name": "Test", "count": 10}`)
+
+	resp, err := Execute(code, eventJSON)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if resp.Result == nil {
-		t.Fatal("expected result, got nil")
+	resultMap, ok := resp.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected map, got %T", resp)
 	}
 
-	if *resp.Result != "Hanako" {
-		t.Errorf("expected result 'Hanako', got '%s'", *resp.Result)
+	if resultMap["name"] != "Test" {
+		t.Errorf("expected name 'Test', got %v", resultMap["name"])
+	}
+
+	if resultMap["count"] != float64(10) {
+		t.Errorf("expected count 10, got %v", resultMap["count"])
 	}
 }
