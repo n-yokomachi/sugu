@@ -4,7 +4,7 @@
 
 # Sugu
 
-> A JavaScript-like interpreted language that runs "sugu" (immediately)
+> A simple interpreted language that runs "sugu" (immediately)
 
 ## Documentation
 
