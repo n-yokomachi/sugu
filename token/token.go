@@ -70,6 +70,9 @@ const (
 	TRUE     = "TRUE"
 	FALSE    = "FALSE"
 	NULL     = "NULL"
+	TRY      = "TRY"
+	CATCH    = "CATCH"
+	THROW    = "THROW"
 )
 
 var keywords = map[string]TokenType{
@@ -89,6 +92,9 @@ var keywords = map[string]TokenType{
 	"true":     TRUE,
 	"false":    FALSE,
 	"null":     NULL,
+	"try":      TRY,
+	"catch":    CATCH,
+	"throw":    THROW,
 }
 
 // LookupIdent は識別子がキーワードかどうかを判定する

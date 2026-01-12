@@ -441,6 +441,26 @@ func (ie *IndexExpression) String() string {
 	return out.String()
 }
 
+// IndexAssignExpression はインデックス代入式（arr[0] = 10, map["key"] = value）
+type IndexAssignExpression struct {
+	Token token.Token // '=' トークン
+	Left  Expression  // 配列やマップ
+	Index Expression  // インデックス
+	Value Expression  // 代入する値
+}
+
+func (iae *IndexAssignExpression) expressionNode()      {}
+func (iae *IndexAssignExpression) TokenLiteral() string { return iae.Token.Literal }
+func (iae *IndexAssignExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(iae.Left.String())
+	out.WriteString("[")
+	out.WriteString(iae.Index.String())
+	out.WriteString("] = ")
+	out.WriteString(iae.Value.String())
+	return out.String()
+}
+
 // MapLiteral はマップリテラル（{"key": "value"}）
 type MapLiteral struct {
 	Token token.Token // '{' トークン
@@ -458,5 +478,42 @@ func (ml *MapLiteral) String() string {
 	out.WriteString("{")
 	out.WriteString(strings.Join(pairs, ", "))
 	out.WriteString("}")
+	return out.String()
+}
+
+// TryStatement はtry/catch文
+type TryStatement struct {
+	Token       token.Token     // 'try' トークン
+	TryBlock    *BlockStatement // try ブロック
+	CatchParam  *Identifier     // catch パラメータ（エラー変数）
+	CatchBlock  *BlockStatement // catch ブロック
+}
+
+func (ts *TryStatement) statementNode()       {}
+func (ts *TryStatement) TokenLiteral() string { return ts.Token.Literal }
+func (ts *TryStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("try ")
+	out.WriteString(ts.TryBlock.String())
+	out.WriteString(" catch (")
+	out.WriteString(ts.CatchParam.String())
+	out.WriteString(") ")
+	out.WriteString(ts.CatchBlock.String())
+	return out.String()
+}
+
+// ThrowStatement はthrow文
+type ThrowStatement struct {
+	Token token.Token // 'throw' トークン
+	Value Expression  // 投げる値
+}
+
+func (ts *ThrowStatement) statementNode()       {}
+func (ts *ThrowStatement) TokenLiteral() string { return ts.Token.Literal }
+func (ts *ThrowStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("throw ")
+	out.WriteString(ts.Value.String())
+	out.WriteString(";")
 	return out.String()
 }
