@@ -66,6 +66,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.ContinueStatement:
 		return &continueValue{}
 
+	case *ast.TryStatement:
+		return evalTryStatement(node, env)
+
+	case *ast.ThrowStatement:
+		return evalThrowStatement(node, env)
+
 	// 式
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
@@ -155,6 +161,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.MapLiteral:
 		return evalMapLiteral(node, env)
+
+	case *ast.IndexAssignExpression:
+		return evalIndexAssignExpression(node, env)
 	}
 
 	return nil
@@ -172,6 +181,9 @@ func evalProgram(program *ast.Program, env *object.Environment) object.Object {
 			return result.Value
 		case *object.Error:
 			return result
+		case *throwValue:
+			// キャッチされなかったthrowはエラーとして扱う
+			return newError("uncaught exception: %s", result.Value.Inspect())
 		}
 	}
 
@@ -195,6 +207,10 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
 				return result
 			}
 			if _, ok := result.(*continueValue); ok {
+				return result
+			}
+			// throwの処理
+			if _, ok := result.(*throwValue); ok {
 				return result
 			}
 		}
@@ -241,6 +257,61 @@ func evalAssignExpression(node *ast.AssignExpression, env *object.Environment) o
 		return newErrorWithPos(node.Token.Line, node.Token.Column, "failed to update variable: %s", name)
 	}
 	return result
+}
+
+// evalIndexAssignExpression はインデックス代入式を評価（arr[0] = 10, map["key"] = value）
+func evalIndexAssignExpression(node *ast.IndexAssignExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	index := Eval(node.Index, env)
+	if isError(index) {
+		return index
+	}
+
+	val := Eval(node.Value, env)
+	if isError(val) {
+		return val
+	}
+
+	switch obj := left.(type) {
+	case *object.Array:
+		return evalArrayIndexAssignment(obj, index, val)
+	case *object.Map:
+		return evalMapIndexAssignment(obj, index, val)
+	default:
+		return newError("index assignment not supported: %s", left.Type())
+	}
+}
+
+// evalArrayIndexAssignment は配列のインデックス代入を評価
+func evalArrayIndexAssignment(array *object.Array, index, val object.Object) object.Object {
+	if index.Type() != object.NUMBER_OBJ {
+		return newError("array index must be a number, got %s", index.Type())
+	}
+
+	idx := int64(index.(*object.Number).Value)
+	length := int64(len(array.Elements))
+
+	if idx < 0 || idx >= length {
+		return newError("array index out of bounds: %d (length: %d)", idx, length)
+	}
+
+	array.Elements[idx] = val
+	return val
+}
+
+// evalMapIndexAssignment はマップのインデックス代入を評価
+func evalMapIndexAssignment(mapObj *object.Map, index, val object.Object) object.Object {
+	key, ok := index.(object.Hashable)
+	if !ok {
+		return newError("unusable as hash key: %s", index.Type())
+	}
+
+	mapObj.Pairs[key.HashKey()] = object.HashPair{Key: index, Value: val}
+	return val
 }
 
 // evalExpressions は式のリストを評価
@@ -732,3 +803,43 @@ type continueValue struct{}
 
 func (c *continueValue) Type() object.ObjectType { return "CONTINUE" }
 func (c *continueValue) Inspect() string         { return "continue" }
+
+// throw用の内部型
+type throwValue struct {
+	Value object.Object
+}
+
+func (t *throwValue) Type() object.ObjectType { return "THROW" }
+func (t *throwValue) Inspect() string         { return "throw " + t.Value.Inspect() }
+
+// evalTryStatement はtry/catch文を評価
+func evalTryStatement(ts *ast.TryStatement, env *object.Environment) object.Object {
+	// tryブロックを評価
+	result := Eval(ts.TryBlock, env)
+
+	// throwされた場合、catchブロックを実行
+	if thrown, ok := result.(*throwValue); ok {
+		// 新しいスコープでcatchブロックを実行
+		catchEnv := object.NewEnclosedEnvironment(env)
+		catchEnv.Set(ts.CatchParam.Value, thrown.Value)
+		return Eval(ts.CatchBlock, catchEnv)
+	}
+
+	// Errorオブジェクト（組み込み関数などからのエラー）もキャッチ
+	if errObj, ok := result.(*object.Error); ok {
+		catchEnv := object.NewEnclosedEnvironment(env)
+		catchEnv.Set(ts.CatchParam.Value, &object.String{Value: errObj.Message})
+		return Eval(ts.CatchBlock, catchEnv)
+	}
+
+	return result
+}
+
+// evalThrowStatement はthrow文を評価
+func evalThrowStatement(ts *ast.ThrowStatement, env *object.Environment) object.Object {
+	val := Eval(ts.Value, env)
+	if isError(val) {
+		return val
+	}
+	return &throwValue{Value: val}
+}

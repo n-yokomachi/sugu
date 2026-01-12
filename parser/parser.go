@@ -101,6 +101,10 @@ func (p *Parser) parseStatement() ast.Statement {
 		return p.parseBreakStatement()
 	case token.CONTINUE:
 		return p.parseContinueStatement()
+	case token.TRY:
+		return p.parseTryStatement()
+	case token.THROW:
+		return p.parseThrowStatement()
 	default:
 		return p.parseExpressionStatement()
 	}
@@ -248,13 +252,17 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		switch p.peekToken.Type {
 		case token.ASSIGN:
-			// 代入式は左辺が識別子の場合のみ有効
-			ident, ok := leftExp.(*ast.Identifier)
-			if !ok {
+			// 代入式は左辺が識別子またはインデックス式の場合のみ有効
+			switch left := leftExp.(type) {
+			case *ast.Identifier:
+				p.nextToken()
+				leftExp = p.parseAssignExpression(left)
+			case *ast.IndexExpression:
+				p.nextToken()
+				leftExp = p.parseIndexAssignExpression(left)
+			default:
 				return leftExp
 			}
-			p.nextToken()
-			leftExp = p.parseAssignExpression(ident)
 		case token.PLUS, token.MINUS, token.ASTERISK, token.SLASH, token.PERCENT,
 			token.EQ, token.NOT_EQ, token.LT, token.GT, token.LT_EQ, token.GT_EQ,
 			token.AND, token.OR:
@@ -292,6 +300,20 @@ func (p *Parser) parseAssignExpression(name *ast.Identifier) ast.Expression {
 	expression := &ast.AssignExpression{
 		Token: p.curToken,
 		Name:  name,
+	}
+
+	p.nextToken()
+	expression.Value = p.parseExpression(ASSIGN)
+
+	return expression
+}
+
+// parseIndexAssignExpression はインデックス代入式をパース（arr[0] = 10）
+func (p *Parser) parseIndexAssignExpression(indexExp *ast.IndexExpression) ast.Expression {
+	expression := &ast.IndexAssignExpression{
+		Token: p.curToken,
+		Left:  indexExp.Left,
+		Index: indexExp.Index,
 	}
 
 	p.nextToken()
@@ -714,4 +736,60 @@ func (p *Parser) parseMapLiteral() ast.Expression {
 	}
 
 	return mapLit
+}
+
+// parseTryStatement はtry/catch文をパース
+func (p *Parser) parseTryStatement() *ast.TryStatement {
+	stmt := &ast.TryStatement{Token: p.curToken}
+
+	// try ブロック
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	stmt.TryBlock = p.parseBlockStatement()
+
+	// catch キーワード
+	if !p.expectPeek(token.CATCH) {
+		return nil
+	}
+
+	// catch パラメータ
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+
+	stmt.CatchParam = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	// catch ブロック
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	stmt.CatchBlock = p.parseBlockStatement()
+
+	return stmt
+}
+
+// parseThrowStatement はthrow文をパース
+func (p *Parser) parseThrowStatement() *ast.ThrowStatement {
+	stmt := &ast.ThrowStatement{Token: p.curToken}
+
+	p.nextToken()
+
+	stmt.Value = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt
 }

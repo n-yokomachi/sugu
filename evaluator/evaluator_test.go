@@ -1,6 +1,8 @@
 package evaluator
 
 import (
+	"fmt"
+	"os"
 	"sugu/lexer"
 	"sugu/object"
 	"sugu/parser"
@@ -1084,5 +1086,404 @@ func TestMapInspectOrder(t *testing.T) {
 		if inspect != expected {
 			t.Errorf("iteration %d: Map.Inspect() wrong. got=%q, want=%q", i, inspect, expected)
 		}
+	}
+}
+
+func TestArrayIndexAssignment(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// 配列要素への代入
+		{`mut arr = [1, 2, 3]; arr[0] = 10; arr[0]`, 10},
+		{`mut arr = [1, 2, 3]; arr[1] = 20; arr[1]`, 20},
+		{`mut arr = [1, 2, 3]; arr[2] = 30; arr[2]`, 30},
+		// 配列全体の確認
+		{`mut arr = [1, 2, 3]; arr[0] = 10; arr[1] + arr[2]`, 5},
+		// 式をインデックスに使用
+		{`mut arr = [1, 2, 3]; mut i = 1; arr[i] = 100; arr[1]`, 100},
+		// 代入式の戻り値
+		{`mut arr = [1, 2, 3]; arr[0] = 99`, 99},
+		// 範囲外アクセスはエラー
+		{`mut arr = [1, 2, 3]; arr[3] = 10`, "array index out of bounds: 3 (length: 3)"},
+		{`mut arr = [1, 2, 3]; arr[-1] = 10`, "array index out of bounds: -1 (length: 3)"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: object is not Error. got=%T (%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestMapIndexAssignment(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// マップ要素への代入（既存キー）
+		{`mut map = {"a": 1, "b": 2}; map["a"] = 10; map["a"]`, 10},
+		// マップ要素への代入（新規キー）
+		{`mut map = {"a": 1}; map["b"] = 2; map["b"]`, 2},
+		// 数値キー
+		{`mut map = {1: "one"}; map[1] = "ONE"; map[1]`, "ONE"},
+		// 代入式の戻り値
+		{`mut map = {}; map["key"] = "value"`, "value"},
+		// 式をキーに使用
+		{`mut map = {}; mut key = "test"; map[key] = 123; map["test"]`, 123},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case string:
+			str, ok := evaluated.(*object.String)
+			if ok {
+				if str.Value != expected {
+					t.Errorf("input %q: wrong string value. expected=%q, got=%q", tt.input, expected, str.Value)
+				}
+			} else {
+				errObj, ok := evaluated.(*object.Error)
+				if !ok {
+					t.Errorf("input %q: object is not String or Error. got=%T (%+v)", tt.input, evaluated, evaluated)
+					continue
+				}
+				if errObj.Message != expected {
+					t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, expected, errObj.Message)
+				}
+			}
+		}
+	}
+}
+
+func TestIndexAssignmentToImmutableString(t *testing.T) {
+	input := `mut s = "hello"; s[0] = "H"`
+
+	evaluated := testEval(input)
+	errObj, ok := evaluated.(*object.Error)
+	if !ok {
+		t.Fatalf("no error object returned. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	expected := "index assignment not supported: STRING"
+	if errObj.Message != expected {
+		t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+	}
+}
+
+func TestTryCatchStatement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// throw をキャッチ
+		{
+			`try { throw "error"; } catch (e) { e }`,
+			"error",
+		},
+		// throw せずに正常終了
+		{
+			`try { 42 } catch (e) { e }`,
+			42,
+		},
+		// throw した値を処理
+		{
+			`try { throw 123; } catch (e) { e + 1 }`,
+			124,
+		},
+		// ネストした try/catch
+		{
+			`try {
+				try {
+					throw "inner";
+				} catch (e) {
+					throw "outer";
+				}
+			} catch (e) {
+				e
+			}`,
+			"outer",
+		},
+		// 関数内での throw
+		{
+			`func throwError() => { throw "func error"; };
+			try { throwError(); } catch (e) { e }`,
+			"func error",
+		},
+		// catch 内で変数にアクセス
+		{
+			`mut result = "none";
+			try { throw "caught"; } catch (e) { result = e; }
+			result`,
+			"caught",
+		},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case string:
+			str, ok := evaluated.(*object.String)
+			if !ok {
+				t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if str.Value != expected {
+				t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, expected, str.Value)
+			}
+		}
+	}
+}
+
+func TestUncaughtThrow(t *testing.T) {
+	input := `throw "uncaught error"`
+
+	evaluated := testEval(input)
+	errObj, ok := evaluated.(*object.Error)
+	if !ok {
+		t.Fatalf("no error object returned. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	expected := `uncaught exception: uncaught error`
+	if errObj.Message != expected {
+		t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+	}
+}
+
+func TestTryCatchWithBuiltinError(t *testing.T) {
+	// 組み込み関数からのエラーもキャッチできる
+	input := `try { 10 / 0 } catch (e) { "caught: " + e }`
+
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	expected := "caught: division by zero"
+	if str.Value != expected {
+		t.Errorf("wrong value. expected=%q, got=%q", expected, str.Value)
+	}
+}
+
+func TestBuiltinInt(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// 数値から整数
+		{`int(3.7)`, 3},
+		{`int(3.2)`, 3},
+		{`int(-3.7)`, -3},
+		{`int(42)`, 42},
+		{`int(0)`, 0},
+		// 文字列から整数
+		{`int("42")`, 42},
+		{`int("3.14")`, 3},
+		{`int("-10")`, -10},
+		// 真偽値から整数
+		{`int(true)`, 1},
+		{`int(false)`, 0},
+		// エラーケース
+		{`int("hello")`, "cannot convert \"hello\" to int"},
+		{`int(null)`, "cannot convert NULL to int"},
+		{`int([1, 2])`, "cannot convert ARRAY to int"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: object is not Error. got=%T (%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestBuiltinFloat(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// 数値はそのまま
+		{`float(42)`, 42.0},
+		{`float(3.14)`, 3.14},
+		// 文字列から浮動小数点数
+		{`float("3.14")`, 3.14},
+		{`float("42")`, 42.0},
+		{`float("-10.5")`, -10.5},
+		// 真偽値から浮動小数点数
+		{`float(true)`, 1.0},
+		{`float(false)`, 0.0},
+		// エラーケース
+		{`float("hello")`, "cannot convert \"hello\" to float"},
+		{`float(null)`, "cannot convert NULL to float"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case float64:
+			testNumberObject(t, evaluated, expected)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: object is not Error. got=%T (%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestBuiltinString(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`string(42)`, "42"},
+		{`string(3.14)`, "3.14"},
+		{`string(true)`, "true"},
+		{`string(false)`, "false"},
+		{`string(null)`, "null"},
+		{`string("hello")`, "hello"},
+		{`string([1, 2, 3])`, "[1, 2, 3]"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+}
+
+func TestBuiltinBool(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		// 数値
+		{`bool(0)`, false},
+		{`bool(1)`, true},
+		{`bool(-1)`, true},
+		{`bool(3.14)`, true},
+		// 文字列
+		{`bool("")`, false},
+		{`bool("hello")`, true},
+		// 真偽値
+		{`bool(true)`, true},
+		{`bool(false)`, false},
+		// null
+		{`bool(null)`, false},
+		// 配列
+		{`bool([])`, false},
+		{`bool([1])`, true},
+		{`bool([1, 2, 3])`, true},
+		// マップ
+		{`bool({})`, false},
+		{`bool({"a": 1})`, true},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testBooleanObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestBuiltinFileIO(t *testing.T) {
+	// テスト用の一時ファイルを作成
+	testFile := "test_file_io.txt"
+	testContent := "Hello, Sugu!"
+
+	// writeFile のテスト
+	writeInput := fmt.Sprintf(`writeFile("%s", "%s")`, testFile, testContent)
+	evaluated := testEval(writeInput)
+	if evaluated != TRUE {
+		t.Errorf("writeFile failed. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	// fileExists のテスト（存在する場合）
+	existsInput := fmt.Sprintf(`fileExists("%s")`, testFile)
+	evaluated = testEval(existsInput)
+	testBooleanObject(t, evaluated, true)
+
+	// readFile のテスト
+	readInput := fmt.Sprintf(`readFile("%s")`, testFile)
+	evaluated = testEval(readInput)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Errorf("readFile failed. got=%T (%+v)", evaluated, evaluated)
+	} else if str.Value != testContent {
+		t.Errorf("readFile wrong content. expected=%q, got=%q", testContent, str.Value)
+	}
+
+	// appendFile のテスト
+	appendContent := " Appended!"
+	appendInput := fmt.Sprintf(`appendFile("%s", "%s")`, testFile, appendContent)
+	evaluated = testEval(appendInput)
+	if evaluated != TRUE {
+		t.Errorf("appendFile failed. got=%T (%+v)", evaluated, evaluated)
+	}
+
+	// 追記後のファイル内容を確認
+	evaluated = testEval(readInput)
+	str, ok = evaluated.(*object.String)
+	if !ok {
+		t.Errorf("readFile after append failed. got=%T (%+v)", evaluated, evaluated)
+	} else if str.Value != testContent+appendContent {
+		t.Errorf("readFile after append wrong content. expected=%q, got=%q", testContent+appendContent, str.Value)
+	}
+
+	// ファイルを削除
+	os.Remove(testFile)
+
+	// fileExists のテスト（存在しない場合）
+	evaluated = testEval(existsInput)
+	testBooleanObject(t, evaluated, false)
+
+	// readFile のエラーテスト（存在しないファイル）
+	readInput = `readFile("nonexistent_file.txt")`
+	evaluated = testEval(readInput)
+	errObj, ok := evaluated.(*object.Error)
+	if !ok {
+		t.Errorf("readFile should return error for nonexistent file. got=%T (%+v)", evaluated, evaluated)
+	} else if errObj.Message == "" {
+		t.Errorf("readFile error message should not be empty")
 	}
 }

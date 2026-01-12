@@ -135,6 +135,37 @@ for (mut i = 0; i < 10; i = i + 1) {
 }
 ```
 
+### エラーハンドリング
+
+`try`/`catch` 文を使って実行時エラーをキャッチできます：
+
+```javascript
+try {
+    const result = riskyOperation();
+} catch (e) {
+    outln("Error: " + e);
+}
+```
+
+`throw` 文でエラーを投げることができます：
+
+```javascript
+func divide(a, b) => {
+    if (b == 0) {
+        throw "Division by zero";
+    }
+    return a / b;
+}
+
+try {
+    const result = divide(10, 0);
+} catch (e) {
+    outln(e);  // "Division by zero"
+}
+```
+
+> 注: キャッチされなかった `throw` はプログラムを終了させます。
+
 ## 関数
 
 ### 関数定義
@@ -186,7 +217,17 @@ outln(arr[2]);  // 30
 outln(arr[5]);  // null（範囲外）
 ```
 
-> 注: 配列は不変です。要素の変更には組み込み関数を使用して新しい配列を作成します。
+### 要素の変更
+
+`mut` で宣言した配列は要素を変更できます：
+
+```javascript
+mut arr = [1, 2, 3];
+arr[0] = 10;      // arr は [10, 2, 3]
+arr[2] = 30;      // arr は [10, 2, 30]
+```
+
+> 注: 範囲外のインデックスへの代入はエラーになります。
 
 ## マップ
 
@@ -206,6 +247,16 @@ const person = {
 outln(person["name"]);  // Alice
 outln(person["age"]);   // 30
 outln(person["foo"]);   // null（存在しないキー）
+```
+
+### 要素の変更・追加
+
+`mut` で宣言したマップは要素を変更・追加できます：
+
+```javascript
+mut map = {"a": 1};
+map["a"] = 10;    // 既存キーの変更: {"a": 10}
+map["b"] = 2;     // 新規キーの追加: {"a": 10, "b": 2}
 ```
 
 ### キーの型
@@ -274,6 +325,34 @@ mut x = 10; //-- インラインでも使える --//
 | `type(x)` | 型を文字列で返す | `type(42)` → `"NUMBER"` |
 | `len(x)` | 長さを返す（文字数） | `len("あいう")` → `3` |
 
+### 型変換
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `int(x)` | 整数に変換（小数点以下切り捨て） | `int(3.7)` → `3` |
+| `float(x)` | 浮動小数点数に変換 | `float("3.14")` → `3.14` |
+| `string(x)` | 文字列に変換 | `string(42)` → `"42"` |
+| `bool(x)` | 真偽値に変換 | `bool(0)` → `false` |
+
+#### 変換ルール
+
+**int()**
+- 数値: 小数点以下切り捨て (`int(3.7)` → `3`)
+- 文字列: 数値文字列を変換 (`int("42")` → `42`)
+- 真偽値: `true` → `1`, `false` → `0`
+
+**float()**
+- 数値: そのまま返す
+- 文字列: 数値文字列を変換 (`float("3.14")` → `3.14`)
+- 真偽値: `true` → `1.0`, `false` → `0.0`
+
+**string()**
+- すべての型を文字列表現に変換
+
+**bool()**
+- `false` になる値: `0`, `""`, `null`, `[]`, `{}`
+- それ以外は `true`
+
 ### 配列操作
 
 | 関数 | 説明 | 例 |
@@ -293,6 +372,34 @@ mut x = 10; //-- インラインでも使える --//
 
 > 注: `keys()` と `values()` の順序は保証されません。
 
+### ファイル操作
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `readFile(path)` | ファイル内容を文字列で返す | `readFile("data.txt")` |
+| `writeFile(path, content)` | ファイルに書き込む | `writeFile("out.txt", "hello")` |
+| `appendFile(path, content)` | ファイルに追記 | `appendFile("log.txt", "entry")` |
+| `fileExists(path)` | ファイルの存在確認 | `fileExists("config.json")` |
+
+```javascript
+// ファイルの読み書き例
+writeFile("hello.txt", "Hello, World!");
+const content = readFile("hello.txt");
+outln(content);  // "Hello, World!"
+
+// ファイルの存在確認
+if (fileExists("config.json")) {
+    const config = readFile("config.json");
+}
+
+// エラーハンドリング
+try {
+    const data = readFile("missing.txt");
+} catch (e) {
+    outln("File not found: " + e);
+}
+```
+
 ## エラーメッセージ
 
 エラーメッセージには行番号と列番号が含まれます：
@@ -309,5 +416,6 @@ line 5, column 10: expected next token to be ), got EOF instead
 mut, const, func, return,
 if, else, switch, case, default,
 while, for, break, continue,
+try, catch, throw,
 true, false, null
 ```

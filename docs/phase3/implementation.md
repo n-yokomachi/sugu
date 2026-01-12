@@ -15,7 +15,7 @@ Phase 3 では、Sugu を実用的なプログラミング言語にするため�
 
 ---
 
-## Step 1: 代入式
+## Step 1: 代入式 ✅
 
 ### 目的
 
@@ -34,10 +34,10 @@ map["a"] = 100;        // map は {"a": 100, "b": 2}
 
 ### 実装内容
 
-1. **AST**: `AssignmentExpression` ノードを追加
-2. **Parser**: インデックス式の左辺値としての解析
-3. **Evaluator**: 代入の評価ロジック
-4. **Object**: 配列・マップのミュータブル操作
+- [x] **AST**: `IndexAssignExpression` ノードを追加
+- [x] **Parser**: インデックス式の左辺値としての解析
+- [x] **Evaluator**: 代入の評価ロジック
+- [x] **テスト**: 配列・マップ代入のテスト
 
 ### 制約
 
@@ -46,7 +46,7 @@ map["a"] = 100;        // map は {"a": 100, "b": 2}
 
 ---
 
-## Step 2: エラーハンドリング
+## Step 2: エラーハンドリング ✅
 
 ### 目的
 
@@ -64,11 +64,11 @@ try {
 
 ### 実装内容
 
-1. **Token**: `TRY`, `CATCH`, `THROW` トークンを追加
-2. **AST**: `TryStatement`, `ThrowStatement` ノードを追加
-3. **Parser**: try/catch/throw の解析
-4. **Object**: `Error` オブジェクトの拡張（メッセージ保持）
-5. **Evaluator**: エラーの伝播とキャッチ
+- [x] **Token**: `TRY`, `CATCH`, `THROW` トークンを追加
+- [x] **AST**: `TryStatement`, `ThrowStatement` ノードを追加
+- [x] **Parser**: try/catch/throw の解析
+- [x] **Evaluator**: エラーの伝播とキャッチ
+- [x] **テスト**: try/catch/throw のテスト
 
 ### throw 文
 
@@ -76,9 +76,15 @@ try {
 throw "Something went wrong";
 ```
 
+### 特徴
+
+- `throw` された値は `catch` ブロックでキャッチできる
+- 組み込み関数からのエラー（例: `10 / 0`）もキャッチ可能
+- キャッチされなかった `throw` はプログラムを終了させる
+
 ---
 
-## Step 3: 型変換関数
+## Step 3: 型変換関数 ✅
 
 ### 目的
 
@@ -95,7 +101,8 @@ throw "Something went wrong";
 
 ### 実装内容
 
-1. **Evaluator/builtins.go**: 各変換関数を実装
+- [x] **Evaluator/builtins.go**: `int()`, `float()`, `string()`, `bool()` 関数を実装
+- [x] **テスト**: 各変換関数のテスト
 
 ### 変換ルール
 
@@ -126,7 +133,7 @@ bool({})      // false (空マップ)
 
 ---
 
-## Step 4: ファイル I/O
+## Step 4: ファイル I/O ✅
 
 ### 目的
 
@@ -143,7 +150,8 @@ bool({})      // false (空マップ)
 
 ### 実装内容
 
-1. **Evaluator/builtins.go**: ファイル操作関数を実装
+- [x] **Evaluator/builtins.go**: `readFile()`, `writeFile()`, `appendFile()`, `fileExists()` 関数を実装
+- [x] **テスト**: ファイル操作のテスト
 
 ### エラーハンドリング
 
