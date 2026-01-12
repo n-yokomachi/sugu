@@ -1186,6 +1186,32 @@ func TestIndexAssignmentToImmutableString(t *testing.T) {
 	}
 }
 
+func TestIndexAssignmentToConstVariable(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// const配列への要素代入
+		{`const arr = [1, 2, 3]; arr[0] = 10`, "cannot modify const variable: arr"},
+		// constマップへの要素代入
+		{`const map = {"a": 1}; map["a"] = 10`, "cannot modify const variable: map"},
+		// constマップへの新規キー追加
+		{`const map = {"a": 1}; map["b"] = 2`, "cannot modify const variable: map"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
 func TestTryCatchStatement(t *testing.T) {
 	tests := []struct {
 		input    string

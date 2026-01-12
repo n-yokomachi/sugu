@@ -261,6 +261,13 @@ func evalAssignExpression(node *ast.AssignExpression, env *object.Environment) o
 
 // evalIndexAssignExpression はインデックス代入式を評価（arr[0] = 10, map["key"] = value）
 func evalIndexAssignExpression(node *ast.IndexAssignExpression, env *object.Environment) object.Object {
+	// 左辺が識別子の場合、const チェックを行う
+	if ident, ok := node.Left.(*ast.Identifier); ok {
+		if env.IsConst(ident.Value) {
+			return newError("cannot modify const variable: %s", ident.Value)
+		}
+	}
+
 	left := Eval(node.Left, env)
 	if isError(left) {
 		return left

@@ -348,8 +348,12 @@ var builtins = map[string]*object.Builtin{
 				return newError("argument to `fileExists` must be STRING, got %s", args[0].Type())
 			}
 			path := args[0].(*object.String).Value
-			_, err := os.Stat(path)
+			info, err := os.Stat(path)
 			if err != nil {
+				return FALSE
+			}
+			// ディレクトリの場合はfalse
+			if info.IsDir() {
 				return FALSE
 			}
 			return TRUE
