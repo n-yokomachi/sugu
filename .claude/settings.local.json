@@ -34,7 +34,12 @@
       "Bash(git merge:*)",
       "Bash(git tag:*)",
       "Bash(powershell -Command:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Skill(review-pull-request)",
+      "Skill(review-pull-request:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
