@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"sugu/object"
 )
 
@@ -357,6 +358,100 @@ var builtins = map[string]*object.Builtin{
 				return FALSE
 			}
 			return TRUE
+		},
+	},
+	"split": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("wrong number of arguments. got=%d, want=2", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("argument to `split` must be STRING, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.STRING_OBJ {
+				return newError("second argument to `split` must be STRING, got %s", args[1].Type())
+			}
+			str := args[0].(*object.String).Value
+			sep := args[1].(*object.String).Value
+			parts := strings.Split(str, sep)
+			elements := make([]object.Object, len(parts))
+			for i, p := range parts {
+				elements[i] = &object.String{Value: p}
+			}
+			return &object.Array{Elements: elements}
+		},
+	},
+	"join": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("wrong number of arguments. got=%d, want=2", len(args))
+			}
+			if args[0].Type() != object.ARRAY_OBJ {
+				return newError("argument to `join` must be ARRAY, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.STRING_OBJ {
+				return newError("second argument to `join` must be STRING, got %s", args[1].Type())
+			}
+			arr := args[0].(*object.Array)
+			sep := args[1].(*object.String).Value
+			strs := make([]string, len(arr.Elements))
+			for i, el := range arr.Elements {
+				strs[i] = el.Inspect()
+			}
+			return &object.String{Value: strings.Join(strs, sep)}
+		},
+	},
+	"trim": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("argument to `trim` must be STRING, got %s", args[0].Type())
+			}
+			str := args[0].(*object.String).Value
+			return &object.String{Value: strings.TrimSpace(str)}
+		},
+	},
+	"replace": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 3 {
+				return newError("wrong number of arguments. got=%d, want=3", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("argument to `replace` must be STRING, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.STRING_OBJ {
+				return newError("second argument to `replace` must be STRING, got %s", args[1].Type())
+			}
+			if args[2].Type() != object.STRING_OBJ {
+				return newError("third argument to `replace` must be STRING, got %s", args[2].Type())
+			}
+			str := args[0].(*object.String).Value
+			old := args[1].(*object.String).Value
+			newStr := args[2].(*object.String).Value
+			return &object.String{Value: strings.ReplaceAll(str, old, newStr)}
+		},
+	},
+	"delete": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("wrong number of arguments. got=%d, want=2", len(args))
+			}
+			if args[0].Type() != object.MAP_OBJ {
+				return newError("argument to `delete` must be MAP, got %s", args[0].Type())
+			}
+			mapObj := args[0].(*object.Map)
+			key, ok := args[1].(object.Hashable)
+			if !ok {
+				return newError("unusable as map key: %s", args[1].Type())
+			}
+			hashKey := key.HashKey()
+			if _, exists := mapObj.Pairs[hashKey]; exists {
+				delete(mapObj.Pairs, hashKey)
+				return TRUE
+			}
+			return FALSE
 		},
 	},
 }

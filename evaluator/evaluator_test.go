@@ -1014,15 +1014,46 @@ func TestModuloWithFloats(t *testing.T) {
 		input    string
 		expected float64
 	}{
+		// 整数同士の剰余（Req 1.2）
 		{"10 % 3", 1},
+		{"10 % 5", 0},
+		{"0 % 5", 0},
+		// 浮動小数点同士の剰余（Req 1.1）
+		{"5.5 % 2.0", 1.5},
 		{"10.5 % 3", 1.5},
 		{"7.5 % 2.5", 0},
+		// 負の数の剰余
 		{"-10 % 3", -1},
+		{"-5.5 % 2.0", -1.5},
 	}
 
 	for _, tt := range tests {
 		evaluated := testEval(tt.input)
 		testNumberObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestModuloByZero(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// ゼロ除算エラー（Req 1.3）
+		{"10 % 0", "division by zero"},
+		{"5.5 % 0", "division by zero"},
+		{"0 % 0", "division by zero"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
 	}
 }
 
@@ -1511,5 +1542,283 @@ func TestBuiltinFileIO(t *testing.T) {
 		t.Errorf("readFile should return error for nonexistent file. got=%T (%+v)", evaluated, evaluated)
 	} else if errObj.Message == "" {
 		t.Errorf("readFile error message should not be empty")
+	}
+}
+
+func TestDeleteBuiltin(t *testing.T) {
+	// 正常系: 存在するキーの削除（Req 2.1）
+	tests := []struct {
+		input    string
+		expected interface{} // bool or string(error)
+	}{
+		// キーが存在する場合は削除して true を返す
+		{`mut m = {"a": 1, "b": 2}; delete(m, "a")`, true},
+		// 数値キーの削除
+		{`mut m = {1: "one", 2: "two"}; delete(m, 1)`, true},
+		// ブーリアンキーの削除
+		{`mut m = {true: "yes"}; delete(m, true)`, true},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testBooleanObject(t, evaluated, tt.expected.(bool))
+	}
+
+	// 削除後にキーが存在しないことを確認
+	input := `mut m = {"a": 1, "b": 2}; delete(m, "a"); m["a"]`
+	evaluated := testEval(input)
+	testNullObject(t, evaluated)
+
+	// 削除後に他のキーが残っていることを確認
+	input = `mut m = {"a": 1, "b": 2}; delete(m, "a"); m["b"]`
+	evaluated = testEval(input)
+	testNumberObject(t, evaluated, 2)
+}
+
+func TestDeleteBuiltinNotFound(t *testing.T) {
+	// 存在しないキーの場合は false を返す（Req 2.2）
+	tests := []struct {
+		input    string
+		expected bool
+	}{
+		{`mut m = {"a": 1}; delete(m, "z")`, false},
+		{`mut m = {}; delete(m, "a")`, false},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testBooleanObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestDeleteBuiltinErrors(t *testing.T) {
+	// 型エラー（Req 2.4）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// 第1引数がマップ以外
+		{`delete([1,2,3], 0)`, "argument to `delete` must be MAP, got ARRAY"},
+		{`delete("hello", 0)`, "argument to `delete` must be MAP, got STRING"},
+		{`delete(42, 0)`, "argument to `delete` must be MAP, got NUMBER"},
+		// 引数の数が不正
+		{`delete({"a": 1})`, "wrong number of arguments. got=1, want=2"},
+		{`delete({"a": 1}, "a", "b")`, "wrong number of arguments. got=3, want=2"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestSplitBuiltin(t *testing.T) {
+	// 正常系（Req 3.1）
+	tests := []struct {
+		input    string
+		expected []string
+	}{
+		{`split("a,b,c", ",")`, []string{"a", "b", "c"}},
+		{`split("hello world", " ")`, []string{"hello", "world"}},
+		{`split("abc", "")`, []string{"a", "b", "c"}},
+		{`split("", ",")`, []string{""}},
+		// マルチバイト文字
+		{`split("あ,い,う", ",")`, []string{"あ", "い", "う"}},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		arr, ok := evaluated.(*object.Array)
+		if !ok {
+			t.Errorf("input %q: object is not Array. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if len(arr.Elements) != len(tt.expected) {
+			t.Errorf("input %q: wrong num of elements. got=%d, want=%d", tt.input, len(arr.Elements), len(tt.expected))
+			continue
+		}
+		for i, exp := range tt.expected {
+			str, ok := arr.Elements[i].(*object.String)
+			if !ok {
+				t.Errorf("input %q: element %d is not String. got=%T", tt.input, i, arr.Elements[i])
+				continue
+			}
+			if str.Value != exp {
+				t.Errorf("input %q: element %d wrong. expected=%q, got=%q", tt.input, i, exp, str.Value)
+			}
+		}
+	}
+
+	// 型エラー（Req 3.9）
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`split(123, ",")`, "argument to `split` must be STRING, got NUMBER"},
+		{`split("a", 1)`, "second argument to `split` must be STRING, got NUMBER"},
+		{`split("a")`, "wrong number of arguments. got=1, want=2"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestJoinBuiltin(t *testing.T) {
+	// 正常系（Req 3.2）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`join(["a", "b", "c"], ",")`, "a,b,c"},
+		{`join(["hello", "world"], " ")`, "hello world"},
+		{`join(["x"], "-")`, "x"},
+		{`join([], ",")`, ""},
+		// マルチバイト文字
+		{`join(["あ", "い", "う"], "・")`, "あ・い・う"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+
+	// 型エラー（Req 3.9）
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`join("abc", ",")`, "argument to `join` must be ARRAY, got STRING"},
+		{`join(["a"], 1)`, "second argument to `join` must be STRING, got NUMBER"},
+		{`join(["a"])`, "wrong number of arguments. got=1, want=2"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestTrimBuiltin(t *testing.T) {
+	// 正常系（Req 3.3）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`trim("  hello  ")`, "hello"},
+		{`trim("hello")`, "hello"},
+		{`trim("  ")`, ""},
+		{`trim("")`, ""},
+		{`trim("\thello\n")`, "hello"},
+		// マルチバイト文字
+		{`trim("  こんにちは  ")`, "こんにちは"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+
+	// 型エラー
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`trim(123)`, "argument to `trim` must be STRING, got NUMBER"},
+		{`trim()`, "wrong number of arguments. got=0, want=1"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestReplaceBuiltin(t *testing.T) {
+	// 正常系（Req 3.4）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`replace("hello world", "world", "Go")`, "hello Go"},
+		{`replace("aaa", "a", "b")`, "bbb"},
+		{`replace("hello", "xyz", "abc")`, "hello"},
+		{`replace("", "a", "b")`, ""},
+		// マルチバイト文字
+		{`replace("こんにちは世界", "世界", "Sugu")`, "こんにちはSugu"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+
+	// 型エラー（Req 3.9）
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`replace(123, "a", "b")`, "argument to `replace` must be STRING, got NUMBER"},
+		{`replace("a", 1, "b")`, "second argument to `replace` must be STRING, got NUMBER"},
+		{`replace("a", "b", 1)`, "third argument to `replace` must be STRING, got NUMBER"},
+		{`replace("a", "b")`, "wrong number of arguments. got=2, want=3"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
 	}
 }

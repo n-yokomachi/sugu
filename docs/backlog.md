@@ -65,7 +65,6 @@ Phase 実装計画（implementation.md）に移動した項目は削除する。
 - ~~マップ要素への代入未実装（`map["key"] = value`）~~ → **Phase 3 で実装済み**
 - 浮動小数点キーのハッシュ問題（`0.0` vs `-0.0`）
   - `NaN` 同士も異なるハッシュになる可能性
-- キー削除機能未実装（`delete(map, key)`）
 
 ### 組み込み関数関連（PR #14）
 
@@ -204,17 +203,6 @@ func (b *breakValue) Type() object.ObjectType { return "BREAK" }
 ```go
 // out, outln, in のテストがない
 // io.Writer/io.Reader を注入可能にしてテスト容易性を向上
-```
-
-### 剰余演算子の浮動小数点対応
-```go
-// 現在
-case "%":
-    return &object.Number{Value: float64(int64(leftVal) % int64(rightVal))}
-
-// 改善: math.Mod を使用
-case "%":
-    return &object.Number{Value: math.Mod(leftVal, rightVal)}
 ```
 
 ### 文字列インデックスのマルチバイト文字対応
