@@ -1,0 +1,22 @@
+{
+  "feature_name": "phase6-module-system",
+  "created_at": "2026-02-18T08:39:58Z",
+  "updated_at": "2026-02-18T08:39:58Z",
+  "language": "ja",
+  "phase": "initialized",
+  "approvals": {
+    "requirements": {
+      "generated": false,
+      "approved": false
+    },
+    "design": {
+      "generated": false,
+      "approved": false
+    },
+    "tasks": {
+      "generated": false,
+      "approved": false
+    }
+  },
+  "ready_for_implementation": false
+}
