@@ -66,19 +66,49 @@ func (l *Lexer) NextToken() token.Token {
 			tok = l.newToken(token.ASSIGN, l.ch)
 		}
 	case '+':
-		tok = l.newToken(token.PLUS, l.ch)
+		if l.peekChar() == '+' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.PLUS_PLUS, "++", startLine, startColumn)
+		} else if l.peekChar() == '=' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.PLUS_ASSIGN, "+=", startLine, startColumn)
+		} else {
+			tok = l.newToken(token.PLUS, l.ch)
+		}
 	case '-':
-		tok = l.newToken(token.MINUS, l.ch)
+		if l.peekChar() == '-' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.MINUS_MINUS, "--", startLine, startColumn)
+		} else if l.peekChar() == '=' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.MINUS_ASSIGN, "-=", startLine, startColumn)
+		} else {
+			tok = l.newToken(token.MINUS, l.ch)
+		}
 	case '*':
-		tok = l.newToken(token.ASTERISK, l.ch)
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.ASTERISK_ASSIGN, "*=", startLine, startColumn)
+		} else {
+			tok = l.newToken(token.ASTERISK, l.ch)
+		}
 	case '/':
 		if l.peekChar() == '/' {
 			l.skipComment()
 			return l.NextToken()
+		} else if l.peekChar() == '=' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.SLASH_ASSIGN, "/=", startLine, startColumn)
+		} else {
+			tok = l.newToken(token.SLASH, l.ch)
 		}
-		tok = l.newToken(token.SLASH, l.ch)
 	case '%':
-		tok = l.newToken(token.PERCENT, l.ch)
+		if l.peekChar() == '=' {
+			l.readChar()
+			tok = l.newTokenWithLiteral(token.PERCENT_ASSIGN, "%=", startLine, startColumn)
+		} else {
+			tok = l.newToken(token.PERCENT, l.ch)
+		}
 	case '!':
 		if l.peekChar() == '=' {
 			l.readChar()

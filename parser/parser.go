@@ -177,26 +177,34 @@ const (
 	PREFIX      // -X or !X
 	CALL        // myFunction(X)
 	INDEX       // array[index]
+	POSTFIX     // x++, x--
 )
 
 // 優先順位テーブル
 var precedences = map[token.TokenType]int{
-	token.ASSIGN:   ASSIGN,
-	token.OR:       LOGICAL_OR,
-	token.AND:      LOGICAL_AND,
-	token.EQ:       EQUALS,
-	token.NOT_EQ:   EQUALS,
-	token.LT:       LESSGREATER,
-	token.GT:       LESSGREATER,
-	token.LT_EQ:    LESSGREATER,
-	token.GT_EQ:    LESSGREATER,
-	token.PLUS:     SUM,
-	token.MINUS:    SUM,
-	token.ASTERISK: PRODUCT,
-	token.SLASH:    PRODUCT,
-	token.PERCENT:  PRODUCT,
-	token.LPAREN:   CALL,
-	token.LBRACKET: INDEX,
+	token.ASSIGN:          ASSIGN,
+	token.PLUS_ASSIGN:     ASSIGN,
+	token.MINUS_ASSIGN:    ASSIGN,
+	token.ASTERISK_ASSIGN: ASSIGN,
+	token.SLASH_ASSIGN:    ASSIGN,
+	token.PERCENT_ASSIGN:  ASSIGN,
+	token.OR:              LOGICAL_OR,
+	token.AND:             LOGICAL_AND,
+	token.EQ:              EQUALS,
+	token.NOT_EQ:          EQUALS,
+	token.LT:              LESSGREATER,
+	token.GT:              LESSGREATER,
+	token.LT_EQ:           LESSGREATER,
+	token.GT_EQ:           LESSGREATER,
+	token.PLUS:            SUM,
+	token.MINUS:           SUM,
+	token.ASTERISK:        PRODUCT,
+	token.SLASH:           PRODUCT,
+	token.PERCENT:         PRODUCT,
+	token.LPAREN:          CALL,
+	token.LBRACKET:        INDEX,
+	token.PLUS_PLUS:       POSTFIX,
+	token.MINUS_MINUS:     POSTFIX,
 }
 
 // peekPrecedence は次のトークンの優先順位を返す
@@ -263,6 +271,21 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 			default:
 				return leftExp
 			}
+		case token.PLUS_ASSIGN, token.MINUS_ASSIGN, token.ASTERISK_ASSIGN,
+			token.SLASH_ASSIGN, token.PERCENT_ASSIGN:
+			switch left := leftExp.(type) {
+			case *ast.Identifier:
+				p.nextToken()
+				leftExp = p.parseCompoundAssignExpression(left)
+			case *ast.IndexExpression:
+				p.nextToken()
+				leftExp = p.parseIndexCompoundAssignExpression(left)
+			default:
+				return leftExp
+			}
+		case token.PLUS_PLUS, token.MINUS_MINUS:
+			p.nextToken()
+			leftExp = p.parsePostfixExpression(leftExp)
 		case token.PLUS, token.MINUS, token.ASTERISK, token.SLASH, token.PERCENT,
 			token.EQ, token.NOT_EQ, token.LT, token.GT, token.LT_EQ, token.GT_EQ,
 			token.AND, token.OR:
@@ -555,6 +578,17 @@ func (p *Parser) parseRegularForWithIdent(forToken token.Token, firstIdent *ast.
 			}
 			p.nextToken()
 			leftExp = p.parseAssignExpression(ident)
+		case token.PLUS_ASSIGN, token.MINUS_ASSIGN, token.ASTERISK_ASSIGN,
+			token.SLASH_ASSIGN, token.PERCENT_ASSIGN:
+			ident, ok := leftExp.(*ast.Identifier)
+			if !ok {
+				break
+			}
+			p.nextToken()
+			leftExp = p.parseCompoundAssignExpression(ident)
+		case token.PLUS_PLUS, token.MINUS_MINUS:
+			p.nextToken()
+			leftExp = p.parsePostfixExpression(leftExp)
 		case token.PLUS, token.MINUS, token.ASTERISK, token.SLASH, token.PERCENT,
 			token.EQ, token.NOT_EQ, token.LT, token.GT, token.LT_EQ, token.GT_EQ,
 			token.AND, token.OR:
@@ -800,18 +834,88 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	return list
 }
 
-// parseIndexExpression はインデックスアクセス式をパース
-func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
-	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+// parsePostfixExpression は後置演算子式をパース（x++, x--）
+func (p *Parser) parsePostfixExpression(left ast.Expression) ast.Expression {
+	return &ast.PostfixExpression{
+		Token:    p.curToken,
+		Operator: p.curToken.Literal,
+		Operand:  left,
+	}
+}
+
+// parseCompoundAssignExpression は複合代入式をパース（x += y）
+func (p *Parser) parseCompoundAssignExpression(name *ast.Identifier) ast.Expression {
+	expression := &ast.CompoundAssignExpression{
+		Token:    p.curToken,
+		Name:     name,
+		Operator: p.curToken.Literal,
+	}
 
 	p.nextToken()
-	exp.Index = p.parseExpression(LOWEST)
+	expression.Value = p.parseExpression(ASSIGN)
+
+	return expression
+}
+
+// parseIndexCompoundAssignExpression はインデックス複合代入式をパース（arr[i] += y）
+func (p *Parser) parseIndexCompoundAssignExpression(indexExp *ast.IndexExpression) ast.Expression {
+	expression := &ast.IndexCompoundAssignExpression{
+		Token:    p.curToken,
+		Left:     indexExp.Left,
+		Index:    indexExp.Index,
+		Operator: p.curToken.Literal,
+	}
+
+	p.nextToken()
+	expression.Value = p.parseExpression(ASSIGN)
+
+	return expression
+}
+
+// parseIndexExpression はインデックスアクセス式またはスライス式をパース
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	bracketToken := p.curToken
+
+	// [:end] パターン: [ の直後が :
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume ':'
+		return p.parseSliceExpressionRest(bracketToken, left, nil)
+	}
+
+	p.nextToken()
+	indexExp := p.parseExpression(LOWEST)
+
+	// [start:end] or [start:] パターン
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // consume ':'
+		return p.parseSliceExpressionRest(bracketToken, left, indexExp)
+	}
+
+	// 通常のインデックス式
+	exp := &ast.IndexExpression{Token: bracketToken, Left: left, Index: indexExp}
 
 	if !p.expectPeek(token.RBRACKET) {
 		return nil
 	}
 
 	return exp
+}
+
+// parseSliceExpressionRest はスライス式の : 以降をパース
+func (p *Parser) parseSliceExpressionRest(bracketToken token.Token, left ast.Expression, low ast.Expression) ast.Expression {
+	slice := &ast.SliceExpression{Token: bracketToken, Left: left, Low: low}
+
+	// High は省略可能
+	if !p.peekTokenIs(token.RBRACKET) {
+		p.nextToken()
+		slice.High = p.parseExpression(LOWEST)
+	}
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return slice
 }
 
 // parseMapLiteral はマップリテラルをパース

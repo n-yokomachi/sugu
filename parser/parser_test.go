@@ -789,6 +789,234 @@ func TestRegularForNotBroken(t *testing.T) {
 	}
 }
 
+func TestPostfixExpressionParsing(t *testing.T) {
+	tests := []struct {
+		input    string
+		operator string
+	}{
+		{"x++;", "++"},
+		{"x--;", "--"},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("input %q: program.Statements does not contain 1 statement. got=%d",
+				tt.input, len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("input %q: program.Statements[0] is not ast.ExpressionStatement. got=%T",
+				tt.input, program.Statements[0])
+		}
+
+		postfix, ok := stmt.Expression.(*ast.PostfixExpression)
+		if !ok {
+			t.Fatalf("input %q: exp is not ast.PostfixExpression. got=%T",
+				tt.input, stmt.Expression)
+		}
+
+		if postfix.Operator != tt.operator {
+			t.Errorf("input %q: postfix.Operator is not %q. got=%q",
+				tt.input, tt.operator, postfix.Operator)
+		}
+	}
+}
+
+func TestCompoundAssignExpressionParsing(t *testing.T) {
+	tests := []struct {
+		input    string
+		operator string
+	}{
+		{"x += 1;", "+="},
+		{"x -= 1;", "-="},
+		{"x *= 2;", "*="},
+		{"x /= 2;", "/="},
+		{"x %= 3;", "%="},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("input %q: program.Statements does not contain 1 statement. got=%d",
+				tt.input, len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("input %q: program.Statements[0] is not ast.ExpressionStatement. got=%T",
+				tt.input, program.Statements[0])
+		}
+
+		compound, ok := stmt.Expression.(*ast.CompoundAssignExpression)
+		if !ok {
+			t.Fatalf("input %q: exp is not ast.CompoundAssignExpression. got=%T",
+				tt.input, stmt.Expression)
+		}
+
+		if compound.Operator != tt.operator {
+			t.Errorf("input %q: compound.Operator is not %q. got=%q",
+				tt.input, tt.operator, compound.Operator)
+		}
+
+		if compound.Name.Value != "x" {
+			t.Errorf("input %q: compound.Name.Value is not 'x'. got=%q",
+				tt.input, compound.Name.Value)
+		}
+	}
+}
+
+func TestIndexCompoundAssignExpressionParsing(t *testing.T) {
+	input := "arr[0] += 10;"
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d",
+			len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
+			program.Statements[0])
+	}
+
+	compound, ok := stmt.Expression.(*ast.IndexCompoundAssignExpression)
+	if !ok {
+		t.Fatalf("exp is not ast.IndexCompoundAssignExpression. got=%T",
+			stmt.Expression)
+	}
+
+	if compound.Operator != "+=" {
+		t.Errorf("compound.Operator is not '+='. got=%q", compound.Operator)
+	}
+}
+
+func TestSliceExpressionParsing(t *testing.T) {
+	tests := []struct {
+		input   string
+		hasLow  bool
+		hasHigh bool
+	}{
+		{"arr[1:3];", true, true},
+		{"arr[:3];", false, true},
+		{"arr[1:];", true, false},
+		{"arr[:];", false, false},
+	}
+
+	for _, tt := range tests {
+		l := lexer.New(tt.input)
+		p := New(l)
+		program := p.ParseProgram()
+		checkParserErrors(t, p)
+
+		if len(program.Statements) != 1 {
+			t.Fatalf("input %q: program.Statements does not contain 1 statement. got=%d",
+				tt.input, len(program.Statements))
+		}
+
+		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("input %q: program.Statements[0] is not ast.ExpressionStatement. got=%T",
+				tt.input, program.Statements[0])
+		}
+
+		slice, ok := stmt.Expression.(*ast.SliceExpression)
+		if !ok {
+			t.Fatalf("input %q: exp is not ast.SliceExpression. got=%T",
+				tt.input, stmt.Expression)
+		}
+
+		if tt.hasLow && slice.Low == nil {
+			t.Errorf("input %q: slice.Low should not be nil", tt.input)
+		}
+		if !tt.hasLow && slice.Low != nil {
+			t.Errorf("input %q: slice.Low should be nil. got=%s", tt.input, slice.Low.String())
+		}
+		if tt.hasHigh && slice.High == nil {
+			t.Errorf("input %q: slice.High should not be nil", tt.input)
+		}
+		if !tt.hasHigh && slice.High != nil {
+			t.Errorf("input %q: slice.High should be nil. got=%s", tt.input, slice.High.String())
+		}
+	}
+}
+
+func TestForWithPostfix(t *testing.T) {
+	input := `for (mut i = 0; i < 10; i++) { outln(i); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+	}
+
+	forStmt, ok := program.Statements[0].(*ast.ForStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not *ast.ForStatement. got=%T", program.Statements[0])
+	}
+
+	if forStmt.Update == nil {
+		t.Fatalf("forStmt.Update is nil")
+	}
+
+	postfix, ok := forStmt.Update.(*ast.PostfixExpression)
+	if !ok {
+		t.Fatalf("forStmt.Update is not *ast.PostfixExpression. got=%T", forStmt.Update)
+	}
+
+	if postfix.Operator != "++" {
+		t.Errorf("postfix.Operator is not '++'. got=%q", postfix.Operator)
+	}
+}
+
+func TestForWithCompoundAssign(t *testing.T) {
+	input := `for (mut i = 0; i < 10; i += 2) { outln(i); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+	}
+
+	forStmt, ok := program.Statements[0].(*ast.ForStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not *ast.ForStatement. got=%T", program.Statements[0])
+	}
+
+	if forStmt.Update == nil {
+		t.Fatalf("forStmt.Update is nil")
+	}
+
+	compound, ok := forStmt.Update.(*ast.CompoundAssignExpression)
+	if !ok {
+		t.Fatalf("forStmt.Update is not *ast.CompoundAssignExpression. got=%T", forStmt.Update)
+	}
+
+	if compound.Operator != "+=" {
+		t.Errorf("compound.Operator is not '+='. got=%q", compound.Operator)
+	}
+}
+
 func TestParserErrorsWithPosition(t *testing.T) {
 	tests := []struct {
 		input    string

@@ -474,6 +474,122 @@ const y = 20;`
 	}
 }
 
+func TestPhase5Operators(t *testing.T) {
+	input := `++ -- += -= *= /= %=`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.PLUS_PLUS, "++"},
+		{token.MINUS_MINUS, "--"},
+		{token.PLUS_ASSIGN, "+="},
+		{token.MINUS_ASSIGN, "-="},
+		{token.ASTERISK_ASSIGN, "*="},
+		{token.SLASH_ASSIGN, "/="},
+		{token.PERCENT_ASSIGN, "%="},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q",
+				i, tt.expectedType, tok.Type)
+		}
+
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q",
+				i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
+func TestPhase5OperatorsInContext(t *testing.T) {
+	input := `x++ y-- x += 1 a -= 2 b *= 3 c /= 4 d %= 5`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.IDENT, "x"},
+		{token.PLUS_PLUS, "++"},
+		{token.IDENT, "y"},
+		{token.MINUS_MINUS, "--"},
+		{token.IDENT, "x"},
+		{token.PLUS_ASSIGN, "+="},
+		{token.NUMBER, "1"},
+		{token.IDENT, "a"},
+		{token.MINUS_ASSIGN, "-="},
+		{token.NUMBER, "2"},
+		{token.IDENT, "b"},
+		{token.ASTERISK_ASSIGN, "*="},
+		{token.NUMBER, "3"},
+		{token.IDENT, "c"},
+		{token.SLASH_ASSIGN, "/="},
+		{token.NUMBER, "4"},
+		{token.IDENT, "d"},
+		{token.PERCENT_ASSIGN, "%="},
+		{token.NUMBER, "5"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q",
+				i, tt.expectedType, tok.Type)
+		}
+
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q",
+				i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
+func TestPlusDisambiguation(t *testing.T) {
+	// + vs ++ vs += の区別
+	input := `a + b a++ a += 1`
+
+	tests := []struct {
+		expectedType    token.TokenType
+		expectedLiteral string
+	}{
+		{token.IDENT, "a"},
+		{token.PLUS, "+"},
+		{token.IDENT, "b"},
+		{token.IDENT, "a"},
+		{token.PLUS_PLUS, "++"},
+		{token.IDENT, "a"},
+		{token.PLUS_ASSIGN, "+="},
+		{token.NUMBER, "1"},
+		{token.EOF, ""},
+	}
+
+	l := New(input)
+
+	for i, tt := range tests {
+		tok := l.NextToken()
+
+		if tok.Type != tt.expectedType {
+			t.Fatalf("tests[%d] - tokentype wrong. expected=%q, got=%q",
+				i, tt.expectedType, tok.Type)
+		}
+
+		if tok.Literal != tt.expectedLiteral {
+			t.Fatalf("tests[%d] - literal wrong. expected=%q, got=%q",
+				i, tt.expectedLiteral, tok.Literal)
+		}
+	}
+}
+
 func TestMultiCharTokenPositions(t *testing.T) {
 	input := `x == y && z != w`
 

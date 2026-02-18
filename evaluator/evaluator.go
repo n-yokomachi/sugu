@@ -167,6 +167,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	case *ast.IndexAssignExpression:
 		return evalIndexAssignExpression(node, env)
+
+	case *ast.PostfixExpression:
+		return evalPostfixExpression(node, env)
+
+	case *ast.CompoundAssignExpression:
+		return evalCompoundAssignExpression(node, env)
+
+	case *ast.IndexCompoundAssignExpression:
+		return evalIndexCompoundAssignExpression(node, env)
+
+	case *ast.SliceExpression:
+		return evalSliceExpression(node, env)
 	}
 
 	return nil
@@ -304,6 +316,11 @@ func evalArrayIndexAssignment(array *object.Array, index, val object.Object) obj
 
 	idx := int64(index.(*object.Number).Value)
 	length := int64(len(array.Elements))
+
+	// 負インデックスの変換
+	if idx < 0 {
+		idx = length + idx
+	}
 
 	if idx < 0 || idx >= length {
 		return newError("array index out of bounds: %d (length: %d)", idx, length)
@@ -863,9 +880,14 @@ func evalMapIndexExpression(mapObj, index object.Object) object.Object {
 func evalArrayIndexExpression(array, index object.Object) object.Object {
 	arrayObject := array.(*object.Array)
 	idx := int64(index.(*object.Number).Value)
-	max := int64(len(arrayObject.Elements) - 1)
+	length := int64(len(arrayObject.Elements))
 
-	if idx < 0 || idx > max {
+	// 負インデックスの変換
+	if idx < 0 {
+		idx = length + idx
+	}
+
+	if idx < 0 || idx >= length {
 		return NULL
 	}
 
@@ -878,9 +900,14 @@ func evalStringIndexExpression(str, index object.Object) object.Object {
 	// runeに変換してマルチバイト文字に対応
 	runes := []rune(stringObject.Value)
 	idx := int64(index.(*object.Number).Value)
-	max := int64(len(runes) - 1)
+	length := int64(len(runes))
 
-	if idx < 0 || idx > max {
+	// 負インデックスの変換
+	if idx < 0 {
+		idx = length + idx
+	}
+
+	if idx < 0 || idx >= length {
 		return NULL
 	}
 
@@ -943,4 +970,233 @@ func evalThrowStatement(ts *ast.ThrowStatement, env *object.Environment) object.
 		return val
 	}
 	return &throwValue{Value: val}
+}
+
+// evalPostfixExpression は後置演算子式（x++, x--）を評価
+func evalPostfixExpression(node *ast.PostfixExpression, env *object.Environment) object.Object {
+	ident, ok := node.Operand.(*ast.Identifier)
+	if !ok {
+		return newError("postfix operator %s requires a variable", node.Operator)
+	}
+
+	current, ok := env.Get(ident.Value)
+	if !ok {
+		return newErrorWithPos(ident.Token.Line, ident.Token.Column, "identifier not found: %s", ident.Value)
+	}
+
+	if env.IsConst(ident.Value) {
+		return newError("cannot reassign to const variable: %s", ident.Value)
+	}
+
+	if current.Type() != object.NUMBER_OBJ {
+		return newError("postfix operator %s not supported: %s", node.Operator, current.Type())
+	}
+
+	currentVal := current.(*object.Number).Value
+	var newVal float64
+	if node.Operator == "++" {
+		newVal = currentVal + 1
+	} else {
+		newVal = currentVal - 1
+	}
+
+	env.Update(ident.Value, &object.Number{Value: newVal})
+	return &object.Number{Value: currentVal}
+}
+
+// evalCompoundAssignExpression は複合代入式（x += y）を評価
+func evalCompoundAssignExpression(node *ast.CompoundAssignExpression, env *object.Environment) object.Object {
+	name := node.Name.Value
+
+	current, ok := env.Get(name)
+	if !ok {
+		return newErrorWithPos(node.Name.Token.Line, node.Name.Token.Column, "identifier not found: %s", name)
+	}
+
+	if env.IsConst(name) {
+		return newError("cannot reassign to const variable: %s", name)
+	}
+
+	val := Eval(node.Value, env)
+	if isError(val) {
+		return val
+	}
+
+	// 演算子から算術演算子を抽出（"+=" → "+"）
+	op := string(node.Operator[0])
+	result := evalInfixExpression(op, current, val)
+	if isError(result) {
+		return result
+	}
+
+	env.Update(name, result)
+	return result
+}
+
+// evalIndexCompoundAssignExpression はインデックス複合代入式（arr[i] += y）を評価
+func evalIndexCompoundAssignExpression(node *ast.IndexCompoundAssignExpression, env *object.Environment) object.Object {
+	// const チェック
+	if ident, ok := node.Left.(*ast.Identifier); ok {
+		if env.IsConst(ident.Value) {
+			return newError("cannot modify const variable: %s", ident.Value)
+		}
+	}
+
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	index := Eval(node.Index, env)
+	if isError(index) {
+		return index
+	}
+
+	val := Eval(node.Value, env)
+	if isError(val) {
+		return val
+	}
+
+	// 現在の値を取得
+	currentVal := evalIndexExpression(left, index)
+	if isError(currentVal) {
+		return currentVal
+	}
+
+	// 演算子から算術演算子を抽出
+	op := string(node.Operator[0])
+	newVal := evalInfixExpression(op, currentVal, val)
+	if isError(newVal) {
+		return newVal
+	}
+
+	// 代入
+	switch obj := left.(type) {
+	case *object.Array:
+		return evalArrayIndexAssignment(obj, index, newVal)
+	case *object.Map:
+		return evalMapIndexAssignment(obj, index, newVal)
+	default:
+		return newError("index assignment not supported: %s", left.Type())
+	}
+}
+
+// evalSliceExpression はスライス式を評価
+func evalSliceExpression(node *ast.SliceExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	var low, high int64
+	var hasLow, hasHigh bool
+
+	if node.Low != nil {
+		lowObj := Eval(node.Low, env)
+		if isError(lowObj) {
+			return lowObj
+		}
+		if lowObj.Type() != object.NUMBER_OBJ {
+			return newError("slice index must be a number, got %s", lowObj.Type())
+		}
+		low = int64(lowObj.(*object.Number).Value)
+		hasLow = true
+	}
+
+	if node.High != nil {
+		highObj := Eval(node.High, env)
+		if isError(highObj) {
+			return highObj
+		}
+		if highObj.Type() != object.NUMBER_OBJ {
+			return newError("slice index must be a number, got %s", highObj.Type())
+		}
+		high = int64(highObj.(*object.Number).Value)
+		hasHigh = true
+	}
+
+	switch obj := left.(type) {
+	case *object.Array:
+		return evalArraySlice(obj, low, high, hasLow, hasHigh)
+	case *object.String:
+		return evalStringSlice(obj, low, high, hasLow, hasHigh)
+	default:
+		return newError("slice operator not supported: %s", left.Type())
+	}
+}
+
+// evalArraySlice は配列のスライスを評価
+func evalArraySlice(arr *object.Array, low, high int64, hasLow, hasHigh bool) object.Object {
+	length := int64(len(arr.Elements))
+
+	if !hasLow {
+		low = 0
+	}
+	if !hasHigh {
+		high = length
+	}
+
+	// 負インデックスの変換
+	if low < 0 {
+		low = length + low
+	}
+	if high < 0 {
+		high = length + high
+	}
+
+	// クランプ
+	if low < 0 {
+		low = 0
+	}
+	if low > length {
+		low = length
+	}
+	if high < low {
+		high = low
+	}
+	if high > length {
+		high = length
+	}
+
+	// 新しい配列を生成
+	newElements := make([]object.Object, high-low)
+	copy(newElements, arr.Elements[low:high])
+	return &object.Array{Elements: newElements}
+}
+
+// evalStringSlice は文字列のスライスを評価
+func evalStringSlice(str *object.String, low, high int64, hasLow, hasHigh bool) object.Object {
+	runes := []rune(str.Value)
+	length := int64(len(runes))
+
+	if !hasLow {
+		low = 0
+	}
+	if !hasHigh {
+		high = length
+	}
+
+	// 負インデックスの変換
+	if low < 0 {
+		low = length + low
+	}
+	if high < 0 {
+		high = length + high
+	}
+
+	// クランプ
+	if low < 0 {
+		low = 0
+	}
+	if low > length {
+		low = length
+	}
+	if high < low {
+		high = low
+	}
+	if high > length {
+		high = length
+	}
+
+	return &object.String{Value: string(runes[low:high])}
 }
