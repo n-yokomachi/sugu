@@ -658,4 +658,47 @@ var builtins = map[string]*object.Builtin{
 			return FALSE
 		},
 	},
+	"contains": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("wrong number of arguments. got=%d, want=2", len(args))
+			}
+			switch container := args[0].(type) {
+			case *object.Array:
+				for _, elem := range container.Elements {
+					if isEqual(elem, args[1]) {
+						return TRUE
+					}
+				}
+				return FALSE
+			case *object.String:
+				if args[1].Type() != object.STRING_OBJ {
+					return newError("second argument to `contains` must be STRING when first is STRING, got %s", args[1].Type())
+				}
+				substr := args[1].(*object.String).Value
+				if strings.Contains(container.Value, substr) {
+					return TRUE
+				}
+				return FALSE
+			default:
+				return newError("argument to `contains` not supported, got %s", args[0].Type())
+			}
+		},
+	},
+	"concat": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) < 2 {
+				return newError("wrong number of arguments. got=%d, want=2+", len(args))
+			}
+			var result []object.Object
+			for _, arg := range args {
+				if arg.Type() != object.ARRAY_OBJ {
+					return newError("argument to `concat` must be ARRAY, got %s", arg.Type())
+				}
+				arr := arg.(*object.Array)
+				result = append(result, arr.Elements...)
+			}
+			return &object.Array{Elements: result}
+		},
+	},
 }

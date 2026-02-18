@@ -750,7 +750,7 @@ func TestArrayIndexExpressions(t *testing.T) {
 		},
 		{
 			"[1, 2, 3][-1]",
-			nil,
+			3,
 		},
 	}
 
@@ -784,7 +784,7 @@ func TestStringIndexExpressions(t *testing.T) {
 		},
 		{
 			`"hello"[-1]`,
-			nil,
+			"o",
 		},
 	}
 
@@ -1137,7 +1137,7 @@ func TestArrayIndexAssignment(t *testing.T) {
 		{`mut arr = [1, 2, 3]; arr[0] = 99`, 99},
 		// 範囲外アクセスはエラー
 		{`mut arr = [1, 2, 3]; arr[3] = 10`, "array index out of bounds: 3 (length: 3)"},
-		{`mut arr = [1, 2, 3]; arr[-1] = 10`, "array index out of bounds: -1 (length: 3)"},
+		{`mut arr = [1, 2, 3]; arr[-4] = 10`, "array index out of bounds: -1 (length: 3)"},
 	}
 
 	for _, tt := range tests {
@@ -2353,6 +2353,495 @@ func TestToLowerBuiltin(t *testing.T) {
 			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
 		}
 	}
+}
+
+func TestPostfixIncrement(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// x++ は更新前の値を返す
+		{`mut x = 5; x++;`, 5},
+		// 更新後の変数の値を確認
+		{`mut x = 5; x++; x;`, 6},
+		// x-- は更新前の値を返す
+		{`mut x = 5; x--;`, 5},
+		// 更新後の変数の値を確認
+		{`mut x = 5; x--; x;`, 4},
+		// ループ内での使用
+		{`
+mut sum = 0;
+mut i = 0;
+while (i < 5) {
+  sum = sum + i;
+  i++;
+}
+sum;
+`, 10},
+		// for文の更新式で使用
+		{`
+mut sum = 0;
+for (mut i = 0; i < 5; i++) {
+  sum = sum + i;
+}
+sum;
+`, 10},
+		// 0からのデクリメント
+		{`mut x = 0; x--; x;`, -1},
+		// 浮動小数点でも動作
+		{`mut x = 3.5; x++; x;`, 4.5},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case float64:
+			testNumberObject(t, evaluated, expected)
+		}
+	}
+}
+
+func TestPostfixErrors(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// const変数への適用
+		{`const x = 5; x++;`, "cannot reassign to const variable: x"},
+		// 数値以外への適用
+		{`mut x = "hello"; x++;`, "postfix operator ++ not supported: STRING"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestCompoundAssignment(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		// += (加算代入)
+		{`mut x = 10; x += 5; x;`, 15},
+		// -= (減算代入)
+		{`mut x = 10; x -= 3; x;`, 7},
+		// *= (乗算代入)
+		{`mut x = 10; x *= 2; x;`, 20},
+		// /= (除算代入)
+		{`mut x = 10; x /= 4; x;`, 2.5},
+		// %= (剰余代入)
+		{`mut x = 10; x %= 3; x;`, 1},
+		// 戻り値は更新後の値
+		{`mut x = 10; x += 5;`, 15},
+		// for文内での使用
+		{`
+mut sum = 0;
+for (mut i = 0; i < 10; i += 2) {
+  sum += i;
+}
+sum;
+`, 20}, // 0 + 2 + 4 + 6 + 8 = 20
+		// 文字列の+=
+		{`mut s = "hello"; s += " world"; len(s);`, 11},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestCompoundAssignmentString(t *testing.T) {
+	input := `mut s = "hello"; s += " world"; s;`
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String. got=%T (%+v)", evaluated, evaluated)
+	}
+	if str.Value != "hello world" {
+		t.Errorf("wrong value. expected=%q, got=%q", "hello world", str.Value)
+	}
+}
+
+func TestCompoundAssignmentErrors(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// const変数
+		{`const x = 5; x += 1;`, "cannot reassign to const variable: x"},
+		// ゼロ除算
+		{`mut x = 10; x /= 0;`, "division by zero"},
+		// ゼロ剰余
+		{`mut x = 10; x %= 0;`, "division by zero"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestIndexCompoundAssignment(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		// 配列インデックスへの複合代入
+		{`mut arr = [10, 20, 30]; arr[0] += 5; arr[0];`, 15},
+		{`mut arr = [10, 20, 30]; arr[1] -= 5; arr[1];`, 15},
+		{`mut arr = [10, 20, 30]; arr[2] *= 2; arr[2];`, 60},
+		// マップキーへの複合代入
+		{`mut m = {"a": 10}; m["a"] += 5; m["a"];`, 15},
+		// 負インデックスでの複合代入
+		{`mut arr = [10, 20, 30]; arr[-1] += 5; arr[2];`, 35},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+}
+
+func TestNegativeIndexing(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// 配列の負インデックス
+		{`[1, 2, 3][-1]`, 3},
+		{`[1, 2, 3][-2]`, 2},
+		{`[1, 2, 3][-3]`, 1},
+		// 範囲外は NULL
+		{`[1, 2, 3][-4]`, nil},
+		// 文字列の負インデックス
+		{`"hello"[-1]`, "o"},
+		{`"hello"[-5]`, "h"},
+		// マルチバイト文字列
+		{`"あいう"[-1]`, "う"},
+		{`"あいう"[-2]`, "い"},
+		// 範囲外
+		{`"hello"[-6]`, nil},
+		// 代入での負インデックス
+		{`mut arr = [1, 2, 3]; arr[-1] = 99; arr[2];`, 99},
+		{`mut arr = [1, 2, 3]; arr[-2] = 88; arr[1];`, 88},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case int:
+			testNumberObject(t, evaluated, float64(expected))
+		case string:
+			str, ok := evaluated.(*object.String)
+			if !ok {
+				t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if str.Value != expected {
+				t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, expected, str.Value)
+			}
+		case nil:
+			testNullObject(t, evaluated)
+		}
+	}
+}
+
+func TestArraySlice(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []int
+	}{
+		// [start:end]
+		{`[1, 2, 3, 4, 5][1:3]`, []int{2, 3}},
+		// [:end]
+		{`[1, 2, 3, 4, 5][:3]`, []int{1, 2, 3}},
+		// [start:]
+		{`[1, 2, 3, 4, 5][2:]`, []int{3, 4, 5}},
+		// [:]
+		{`[1, 2, 3, 4, 5][:]`, []int{1, 2, 3, 4, 5}},
+		// 負インデックス
+		{`[1, 2, 3, 4, 5][-2:]`, []int{4, 5}},
+		{`[1, 2, 3, 4, 5][:-1]`, []int{1, 2, 3, 4}},
+		{`[1, 2, 3, 4, 5][-3:-1]`, []int{3, 4}},
+		// 空の結果
+		{`[1, 2, 3][2:2]`, []int{}},
+		// 範囲外のクランプ
+		{`[1, 2, 3][0:100]`, []int{1, 2, 3}},
+		{`[1, 2, 3][-100:2]`, []int{1, 2}},
+		// 空配列
+		{`[][:]`, []int{}},
+		// 変数経由
+		{`mut arr = [10, 20, 30, 40]; arr[1:3]`, []int{20, 30}},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		arr, ok := evaluated.(*object.Array)
+		if !ok {
+			t.Errorf("input %q: object is not Array. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if len(arr.Elements) != len(tt.expected) {
+			t.Errorf("input %q: wrong num of elements. got=%d, want=%d",
+				tt.input, len(arr.Elements), len(tt.expected))
+			continue
+		}
+		for i, exp := range tt.expected {
+			testNumberObject(t, arr.Elements[i], float64(exp))
+		}
+	}
+}
+
+func TestArraySliceImmutability(t *testing.T) {
+	// スライスは新しい配列を返し、元の配列は変更されない
+	input := `
+mut arr = [1, 2, 3, 4, 5];
+mut sliced = arr[1:3];
+sliced[0] = 99;
+arr[1];
+`
+	evaluated := testEval(input)
+	testNumberObject(t, evaluated, 2)
+}
+
+func TestStringSlice(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// [start:end]
+		{`"hello"[1:3]`, "el"},
+		// [:end]
+		{`"hello"[:3]`, "hel"},
+		// [start:]
+		{`"hello"[2:]`, "llo"},
+		// [:]
+		{`"hello"[:]`, "hello"},
+		// 負インデックス
+		{`"hello"[-3:]`, "llo"},
+		{`"hello"[:-2]`, "hel"},
+		// マルチバイト文字列
+		{`"こんにちは"[1:3]`, "んに"},
+		{`"hello世界"[5:]`, "世界"},
+		{`"hello世界"[:5]`, "hello"},
+		// 空文字列
+		{`""[:]`, ""},
+		// 範囲外のクランプ
+		{`"hello"[0:100]`, "hello"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+}
+
+func TestSliceErrors(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// サポートされていない型
+		{`42[1:3]`, "slice operator not supported: NUMBER"},
+		// インデックスが数値でない
+		{`[1,2,3]["a":2]`, "slice index must be a number, got STRING"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestContainsBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// 配列: 要素が存在する
+		{`contains([1, 2, 3], 2)`, true},
+		// 配列: 要素が存在しない
+		{`contains([1, 2, 3], 4)`, false},
+		// 配列: 空配列
+		{`contains([], 1)`, false},
+		// 配列: 文字列要素
+		{`contains(["a", "b", "c"], "b")`, true},
+		{`contains(["a", "b", "c"], "d")`, false},
+		// 配列: 型が異なる
+		{`contains([1, 2, 3], "1")`, false},
+		// 文字列: 部分文字列が存在する
+		{`contains("hello world", "world")`, true},
+		{`contains("hello world", "hello")`, true},
+		// 文字列: 部分文字列が存在しない
+		{`contains("hello world", "xyz")`, false},
+		// 文字列: 空文字列を検索
+		{`contains("hello", "")`, true},
+		// 文字列: マルチバイト
+		{`contains("こんにちは", "にち")`, true},
+		{`contains("こんにちは", "さよ")`, false},
+		// エラー: サポートされない型
+		{`contains(42, 1)`, "argument to `contains` not supported, got NUMBER"},
+		// エラー: 引数の数
+		{`contains([1])`, "wrong number of arguments. got=1, want=2"},
+		// エラー: 文字列で検索対象が文字列でない
+		{`contains("hello", 1)`, "second argument to `contains` must be STRING when first is STRING, got NUMBER"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+
+		switch expected := tt.expected.(type) {
+		case bool:
+			testBooleanObject(t, evaluated, expected)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestConcatBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected []int
+	}{
+		// 2つの配列を結合
+		{`concat([1, 2], [3, 4])`, []int{1, 2, 3, 4}},
+		// 3つ以上の配列を結合
+		{`concat([1], [2], [3])`, []int{1, 2, 3}},
+		// 空配列を含む結合
+		{`concat([], [1, 2])`, []int{1, 2}},
+		{`concat([1, 2], [])`, []int{1, 2}},
+		// 空配列同士
+		{`concat([], [])`, []int{}},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		arr, ok := evaluated.(*object.Array)
+		if !ok {
+			t.Errorf("input %q: object is not Array. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if len(arr.Elements) != len(tt.expected) {
+			t.Errorf("input %q: wrong num of elements. got=%d, want=%d",
+				tt.input, len(arr.Elements), len(tt.expected))
+			continue
+		}
+		for i, exp := range tt.expected {
+			testNumberObject(t, arr.Elements[i], float64(exp))
+		}
+	}
+}
+
+func TestConcatBuiltinImmutability(t *testing.T) {
+	// concat は新しい配列を返し、元の配列は変更されない
+	input := `
+mut a = [1, 2];
+mut b = [3, 4];
+mut c = concat(a, b);
+len(a);
+`
+	evaluated := testEval(input)
+	testNumberObject(t, evaluated, 2)
+}
+
+func TestConcatBuiltinErrors(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		// 引数が足りない
+		{`concat([1])`, "wrong number of arguments. got=1, want=2+"},
+		// 配列以外の引数
+		{`concat([1], "hello")`, "argument to `concat` must be ARRAY, got STRING"},
+		{`concat("hello", [1])`, "argument to `concat` must be ARRAY, got STRING"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error object returned. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error message. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestPhase5Integration(t *testing.T) {
+	// Phase 5 の複数機能を組み合わせた統合テスト
+
+	// for + ++ + スライス
+	input1 := `
+mut arr = [1, 2, 3, 4, 5];
+mut result = arr[1:-1];
+mut sum = 0;
+for (mut i = 0; i < len(result); i++) {
+  sum += result[i];
+}
+sum;
+`
+	testNumberObject(t, testEval(input1), 9) // 2 + 3 + 4
+
+	// contains + concat
+	input2 := `
+mut a = [1, 2, 3];
+mut b = [4, 5, 6];
+mut merged = concat(a, b);
+contains(merged, 5);
+`
+	testBooleanObject(t, testEval(input2), true)
+
+	// 負インデックス + 複合代入
+	input3 := `
+mut arr = [10, 20, 30];
+arr[-1] += 70;
+arr[2];
+`
+	testNumberObject(t, testEval(input3), 100)
 }
 
 func TestReplaceBuiltin(t *testing.T) {

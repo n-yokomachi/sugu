@@ -74,8 +74,8 @@ while (i < 5) {
     i = i + 1;
 }
 
-// for
-for (mut i = 0; i < 5; i = i + 1) {
+// for (with ++ and +=)
+for (mut i = 0; i < 5; i++) {
     outln(i);
 }
 
@@ -114,6 +114,8 @@ try {
 | Category | Operators |
 |----------|-----------|
 | Arithmetic | `+`, `-`, `*`, `/`, `%` |
+| Postfix | `++`, `--` |
+| Compound Assignment | `+=`, `-=`, `*=`, `/=`, `%=` |
 | Comparison | `==`, `!=`, `<`, `>`, `<=`, `>=` |
 | Logical | `&&`, `\|\|`, `!` |
 
@@ -152,6 +154,8 @@ try {
 | `first(arr)` | Get first element |
 | `last(arr)` | Get last element |
 | `rest(arr)` | Get all but first element |
+| `contains(arr, x)` | Check if element exists in array/string |
+| `concat(a, b, ...)` | Concatenate multiple arrays |
 
 **Map**
 

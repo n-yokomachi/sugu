@@ -28,6 +28,17 @@ const (
 	PERCENT  = "%"
 	BANG     = "!"
 
+	// 後置演算子
+	PLUS_PLUS   = "++"
+	MINUS_MINUS = "--"
+
+	// 複合代入演算子
+	PLUS_ASSIGN     = "+="
+	MINUS_ASSIGN    = "-="
+	ASTERISK_ASSIGN = "*="
+	SLASH_ASSIGN    = "/="
+	PERCENT_ASSIGN  = "%="
+
 	// 比較演算子
 	EQ     = "=="
 	NOT_EQ = "!="

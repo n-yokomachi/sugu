@@ -508,6 +508,89 @@ func (ml *MapLiteral) String() string {
 	return out.String()
 }
 
+// PostfixExpression は後置演算子式（x++, x-- など）
+type PostfixExpression struct {
+	Token    token.Token // ++ or -- token
+	Operator string      // "++" or "--"
+	Operand  Expression  // the variable being modified
+}
+
+func (pe *PostfixExpression) expressionNode()      {}
+func (pe *PostfixExpression) TokenLiteral() string { return pe.Token.Literal }
+func (pe *PostfixExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(pe.Operand.String())
+	out.WriteString(pe.Operator)
+	out.WriteString(")")
+	return out.String()
+}
+
+// CompoundAssignExpression は複合代入式（x += y, x -= y など）
+type CompoundAssignExpression struct {
+	Token    token.Token // += -= *= /= %= token
+	Name     *Identifier
+	Operator string // "+=" "-=" "*=" "/=" "%="
+	Value    Expression
+}
+
+func (ca *CompoundAssignExpression) expressionNode()      {}
+func (ca *CompoundAssignExpression) TokenLiteral() string { return ca.Token.Literal }
+func (ca *CompoundAssignExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(ca.Name.String())
+	out.WriteString(" " + ca.Operator + " ")
+	out.WriteString(ca.Value.String())
+	return out.String()
+}
+
+// IndexCompoundAssignExpression はインデックス複合代入式（arr[i] += y など）
+type IndexCompoundAssignExpression struct {
+	Token    token.Token // += -= *= /= %= token
+	Left     Expression  // the indexed expression (e.g., arr)
+	Index    Expression  // index expression
+	Operator string      // "+=" "-=" "*=" "/=" "%="
+	Value    Expression  // right-hand expression
+}
+
+func (ica *IndexCompoundAssignExpression) expressionNode()      {}
+func (ica *IndexCompoundAssignExpression) TokenLiteral() string { return ica.Token.Literal }
+func (ica *IndexCompoundAssignExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString(ica.Left.String())
+	out.WriteString("[")
+	out.WriteString(ica.Index.String())
+	out.WriteString("] " + ica.Operator + " ")
+	out.WriteString(ica.Value.String())
+	return out.String()
+}
+
+// SliceExpression はスライス式（arr[1:3], arr[:3], arr[1:], arr[:] など）
+type SliceExpression struct {
+	Token token.Token // [ token
+	Left  Expression  // the array/string being sliced
+	Low   Expression  // start index (nil if omitted)
+	High  Expression  // end index (nil if omitted)
+}
+
+func (se *SliceExpression) expressionNode()      {}
+func (se *SliceExpression) TokenLiteral() string { return se.Token.Literal }
+func (se *SliceExpression) String() string {
+	var out bytes.Buffer
+	out.WriteString("(")
+	out.WriteString(se.Left.String())
+	out.WriteString("[")
+	if se.Low != nil {
+		out.WriteString(se.Low.String())
+	}
+	out.WriteString(":")
+	if se.High != nil {
+		out.WriteString(se.High.String())
+	}
+	out.WriteString("])")
+	return out.String()
+}
+
 // TryStatement はtry/catch文
 type TryStatement struct {
 	Token       token.Token     // 'try' トークン
