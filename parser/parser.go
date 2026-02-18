@@ -475,13 +475,114 @@ func (p *Parser) parseWhileStatement() *ast.WhileStatement {
 	return stmt
 }
 
-// parseForStatement はfor文をパース
-func (p *Parser) parseForStatement() *ast.ForStatement {
-	stmt := &ast.ForStatement{Token: p.curToken}
+// parseForStatement はfor文またはfor-in文をパース
+func (p *Parser) parseForStatement() ast.Statement {
+	forToken := p.curToken
 
 	if !p.expectPeek(token.LPAREN) {
 		return nil
 	}
+
+	// for-in 検出: ( の直後が IDENT の場合
+	if p.peekTokenIs(token.IDENT) {
+		p.nextToken()
+		firstIdent := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		// for (item in expr) { ... } — 単一変数 for-in
+		if p.peekTokenIs(token.IDENT) && p.peekToken.Literal == "in" {
+			return p.parseForInRest(forToken, firstIdent, nil)
+		}
+
+		// for (key, value in expr) { ... } — 2変数 for-in
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken() // consume ','
+			if !p.expectPeek(token.IDENT) {
+				return nil
+			}
+			secondIdent := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+			if p.peekTokenIs(token.IDENT) && p.peekToken.Literal == "in" {
+				return p.parseForInRest(forToken, firstIdent, secondIdent)
+			}
+			msg := fmt.Sprintf("line %d, column %d: expected 'in' in for-in statement, got %s",
+				p.peekToken.Line, p.peekToken.Column, p.peekToken.Literal)
+			p.errors = append(p.errors, msg)
+			return nil
+		}
+
+		// for-in ではない: 通常の for 文（IDENT で始まる初期化式）
+		return p.parseRegularForWithIdent(forToken, firstIdent)
+	}
+
+	// 通常の for 文（mut/const/セミコロン始まり）
+	return p.parseRegularFor(forToken)
+}
+
+// parseForInRest は for-in 文の "in" 以降をパースする
+func (p *Parser) parseForInRest(forToken token.Token, key *ast.Identifier, value *ast.Identifier) *ast.ForInStatement {
+	p.nextToken() // consume "in"
+	p.nextToken() // move to iterable expression
+	iterable := p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+	body := p.parseBlockStatement()
+
+	return &ast.ForInStatement{
+		Token:    forToken,
+		Key:      key,
+		Value:    value,
+		Iterable: iterable,
+		Body:     body,
+	}
+}
+
+// parseRegularForWithIdent は最初の IDENT を消費済みの通常の for 文をパースする
+func (p *Parser) parseRegularForWithIdent(forToken token.Token, firstIdent *ast.Identifier) *ast.ForStatement {
+	stmt := &ast.ForStatement{Token: forToken}
+
+	// firstIdent から式の残りをパース（典型的には i = 0）
+	leftExp := ast.Expression(firstIdent)
+	for !p.peekTokenIs(token.SEMICOLON) && LOWEST < p.peekPrecedence() {
+		switch p.peekToken.Type {
+		case token.ASSIGN:
+			ident, ok := leftExp.(*ast.Identifier)
+			if !ok {
+				break
+			}
+			p.nextToken()
+			leftExp = p.parseAssignExpression(ident)
+		case token.PLUS, token.MINUS, token.ASTERISK, token.SLASH, token.PERCENT,
+			token.EQ, token.NOT_EQ, token.LT, token.GT, token.LT_EQ, token.GT_EQ,
+			token.AND, token.OR:
+			p.nextToken()
+			leftExp = p.parseInfixExpression(leftExp)
+		case token.LPAREN:
+			p.nextToken()
+			leftExp = p.parseCallExpression(leftExp)
+		case token.LBRACKET:
+			p.nextToken()
+			leftExp = p.parseIndexExpression(leftExp)
+		default:
+			goto doneInit
+		}
+	}
+doneInit:
+	stmt.Init = &ast.ExpressionStatement{Token: firstIdent.Token, Expression: leftExp}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return p.finishRegularFor(stmt)
+}
+
+// parseRegularFor は通常の for 文をパースする
+func (p *Parser) parseRegularFor(forToken token.Token) *ast.ForStatement {
+	stmt := &ast.ForStatement{Token: forToken}
 
 	// 初期化式（オプショナル）
 	if !p.peekTokenIs(token.SEMICOLON) {
@@ -491,6 +592,11 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 		p.nextToken()
 	}
 
+	return p.finishRegularFor(stmt)
+}
+
+// finishRegularFor は初期化式の後の条件式・更新式・ボディをパースする
+func (p *Parser) finishRegularFor(stmt *ast.ForStatement) *ast.ForStatement {
 	// 条件式（オプショナル）
 	if !p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()

@@ -669,6 +669,126 @@ func testNumberLiteral(t *testing.T, exp ast.Expression, value string) {
 	}
 }
 
+func TestForInSingleVariable(t *testing.T) {
+	input := `for (item in arr) { outln(item); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ForInStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not *ast.ForInStatement. got=%T", program.Statements[0])
+	}
+
+	if stmt.Key.Value != "item" {
+		t.Errorf("stmt.Key.Value not 'item'. got=%q", stmt.Key.Value)
+	}
+
+	if stmt.Value != nil {
+		t.Errorf("stmt.Value should be nil for single variable. got=%v", stmt.Value)
+	}
+
+	if stmt.Iterable.String() != "arr" {
+		t.Errorf("stmt.Iterable.String() not 'arr'. got=%q", stmt.Iterable.String())
+	}
+
+	if len(stmt.Body.Statements) != 1 {
+		t.Errorf("body should have 1 statement. got=%d", len(stmt.Body.Statements))
+	}
+}
+
+func TestForInTwoVariables(t *testing.T) {
+	input := `for (i, item in arr) { outln(i); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+	}
+
+	stmt, ok := program.Statements[0].(*ast.ForInStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not *ast.ForInStatement. got=%T", program.Statements[0])
+	}
+
+	if stmt.Key.Value != "i" {
+		t.Errorf("stmt.Key.Value not 'i'. got=%q", stmt.Key.Value)
+	}
+
+	if stmt.Value == nil {
+		t.Fatalf("stmt.Value should not be nil for two variable form")
+	}
+
+	if stmt.Value.Value != "item" {
+		t.Errorf("stmt.Value.Value not 'item'. got=%q", stmt.Value.Value)
+	}
+
+	if stmt.Iterable.String() != "arr" {
+		t.Errorf("stmt.Iterable.String() not 'arr'. got=%q", stmt.Iterable.String())
+	}
+}
+
+func TestForInWithExpression(t *testing.T) {
+	input := `for (key, value in getMap()) { outln(key); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt, ok := program.Statements[0].(*ast.ForInStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not *ast.ForInStatement. got=%T", program.Statements[0])
+	}
+
+	if stmt.Iterable.String() != "getMap()" {
+		t.Errorf("stmt.Iterable.String() not 'getMap()'. got=%q", stmt.Iterable.String())
+	}
+}
+
+func TestForInString(t *testing.T) {
+	input := `for (item in arr) { outln(item); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	stmt := program.Statements[0].(*ast.ForInStatement)
+	expected := "for (item in arr) { outln(item) }"
+	if stmt.String() != expected {
+		t.Errorf("stmt.String() wrong.\nexpected=%q\ngot=%q", expected, stmt.String())
+	}
+}
+
+func TestRegularForNotBroken(t *testing.T) {
+	// 既存の for 文が壊れていないことを確認
+	input := `for (mut i = 0; i < 10; i = i + 1) { outln(i); }`
+
+	l := lexer.New(input)
+	p := New(l)
+	program := p.ParseProgram()
+	checkParserErrors(t, p)
+
+	if len(program.Statements) != 1 {
+		t.Fatalf("program.Statements does not contain 1 statement. got=%d", len(program.Statements))
+	}
+
+	_, ok := program.Statements[0].(*ast.ForStatement)
+	if !ok {
+		t.Fatalf("program.Statements[0] is not *ast.ForStatement. got=%T", program.Statements[0])
+	}
+}
+
 func TestParserErrorsWithPosition(t *testing.T) {
 	tests := []struct {
 		input    string

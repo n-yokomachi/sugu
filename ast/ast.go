@@ -342,6 +342,33 @@ func (fs *ForStatement) String() string {
 	return out.String()
 }
 
+// ForInStatement はfor-inループ文
+// for (item in arr) { ... } または for (key, value in map) { ... }
+type ForInStatement struct {
+	Token    token.Token     // 'for' トークン
+	Key      *Identifier     // 単一変数 or 2変数のキー/インデックス
+	Value    *Identifier     // 2変数形式の値（nil なら単一変数形式）
+	Iterable Expression      // イテレート対象（配列 or マップ）
+	Body     *BlockStatement // ループ本体
+}
+
+func (fis *ForInStatement) statementNode()       {}
+func (fis *ForInStatement) TokenLiteral() string { return fis.Token.Literal }
+func (fis *ForInStatement) String() string {
+	var out bytes.Buffer
+	out.WriteString("for (")
+	out.WriteString(fis.Key.String())
+	if fis.Value != nil {
+		out.WriteString(", ")
+		out.WriteString(fis.Value.String())
+	}
+	out.WriteString(" in ")
+	out.WriteString(fis.Iterable.String())
+	out.WriteString(") ")
+	out.WriteString(fis.Body.String())
+	return out.String()
+}
+
 // BreakStatement はbreak文
 type BreakStatement struct {
 	Token token.Token // 'break' トークン

@@ -79,11 +79,33 @@ for (mut i = 0; i < 5; i = i + 1) {
     outln(i);
 }
 
+// for-in (array)
+for (item in [1, 2, 3]) {
+    outln(item);
+}
+
+// for-in with index
+for (i, item in ["a", "b", "c"]) {
+    outln(string(i) + ": " + item);
+}
+
+// for-in (map)
+for (key, value in {"x": 1, "y": 2}) {
+    outln(key + " = " + string(value));
+}
+
 // switch
 switch (x) {
     case 1: { outln("one"); }
     case 2: { outln("two"); }
     default: { outln("other"); }
+}
+
+// try-catch
+try {
+    throw "error";
+} catch (e) {
+    outln(e);
 }
 ```
 
@@ -97,20 +119,83 @@ switch (x) {
 
 ### Builtin Functions
 
+**I/O**
+
 | Function | Description |
 |----------|-------------|
 | `out(x)` | Print without newline |
 | `outln(x)` | Print with newline |
 | `in()` | Read user input |
-| `len(x)` | Get length of string/array/map |
+
+**Type & Length**
+
+| Function | Description |
+|----------|-------------|
 | `type(x)` | Get type of value |
+| `len(x)` | Get length of string/array/map |
+
+**Type Conversion**
+
+| Function | Description |
+|----------|-------------|
+| `int(x)` | Convert to integer (truncate toward zero) |
+| `float(x)` | Convert to float |
+| `string(x)` | Convert to string |
+| `bool(x)` | Convert to boolean |
+
+**Array**
+
+| Function | Description |
+|----------|-------------|
 | `push(arr, x)` | Append to array (returns new array) |
 | `pop(arr)` | Remove last element (returns new array) |
 | `first(arr)` | Get first element |
 | `last(arr)` | Get last element |
 | `rest(arr)` | Get all but first element |
+
+**Map**
+
+| Function | Description |
+|----------|-------------|
 | `keys(map)` | Get map keys as array |
 | `values(map)` | Get map values as array |
+| `delete(map, key)` | Delete key from map |
+
+**String**
+
+| Function | Description |
+|----------|-------------|
+| `split(str, sep)` | Split string by separator |
+| `join(arr, sep)` | Join array elements with separator |
+| `trim(str)` | Remove leading/trailing whitespace |
+| `replace(str, old, new)` | Replace all occurrences |
+| `substring(str, start, end)` | Get substring (rune-based) |
+| `indexOf(str, substr)` | Find substring position (rune-based) |
+| `toUpper(str)` | Convert to uppercase |
+| `toLower(str)` | Convert to lowercase |
+
+**Math**
+
+| Function | Description |
+|----------|-------------|
+| `abs(x)` | Absolute value |
+| `floor(x)` | Round toward negative infinity |
+| `ceil(x)` | Round toward positive infinity |
+| `round(x)` | Round to nearest integer |
+| `sqrt(x)` | Square root |
+| `pow(x, y)` | Power (x^y) |
+| `min(a, b, ...)` | Minimum value |
+| `max(a, b, ...)` | Maximum value |
+| `random()` | Random number [0, 1) |
+
+**File I/O**
+
+| Function | Description |
+|----------|-------------|
+| `readFile(path)` | Read file contents |
+| `writeFile(path, content)` | Write to file |
+| `appendFile(path, content)` | Append to file |
+| `fileExists(path)` | Check if file exists |
 
 ### Comments
 
