@@ -118,6 +118,34 @@ for (mut i = 0; i < 10; i = i + 1) {
 }
 ```
 
+### for-in ループ
+
+配列やマップを簡潔にイテレートできます：
+
+```javascript
+// 配列: 要素をイテレート
+for (item in [1, 2, 3]) {
+    outln(item);  // 1, 2, 3
+}
+
+// 配列: インデックスと要素
+for (i, item in ["a", "b", "c"]) {
+    outln(string(i) + ": " + item);  // 0: a, 1: b, 2: c
+}
+
+// マップ: キーをイテレート
+for (key in {"x": 1, "y": 2}) {
+    outln(key);
+}
+
+// マップ: キーと値
+for (key, value in {"x": 1, "y": 2}) {
+    outln(key + " = " + string(value));
+}
+```
+
+> 注: イテレーション変数は `const` として扱われ、ループ本体内での再代入はできません。`break` と `continue` も使用可能です。`in` は予約語ではなく、for 文のコンテキストでのみ特別に解釈されます。
+
 ### ループ制御
 
 | キーワード | 意味 |
@@ -376,6 +404,37 @@ mut x = 10; //-- インラインでも使える --//
 | `delete(map, key)` | キーを削除（成功: `true`、不在: `false`） | `delete(m, "a")` → `true` |
 
 > 注: `keys()` と `values()` の順序は保証されません。
+
+### 文字列操作
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `split(str, sep)` | 区切り文字で分割した配列を返す | `split("a,b,c", ",")` → `["a","b","c"]` |
+| `join(arr, sep)` | 配列要素を区切り文字で結合 | `join(["a","b"], ",")` → `"a,b"` |
+| `trim(str)` | 前後の空白を除去 | `trim("  hi  ")` → `"hi"` |
+| `replace(str, old, new)` | すべての一致箇所を置換 | `replace("aaa", "a", "b")` → `"bbb"` |
+| `substring(str, start, end)` | rune 単位で部分文字列を返す | `substring("こんにちは", 0, 3)` → `"こんに"` |
+| `indexOf(str, substr)` | 部分文字列の rune 位置を返す | `indexOf("hello", "ell")` → `1` |
+| `toUpper(str)` | 全文字を大文字に変換 | `toUpper("hello")` → `"HELLO"` |
+| `toLower(str)` | 全文字を小文字に変換 | `toLower("HELLO")` → `"hello"` |
+
+> 注: `substring` と `indexOf` は rune 単位で動作するため、マルチバイト文字（日本語等）でも正しいインデックスを返します。`indexOf` は見つからない場合 `-1` を返します。
+
+### 数学関数
+
+| 関数 | 説明 | 例 |
+|---|---|---|
+| `abs(x)` | 絶対値 | `abs(-5)` → `5` |
+| `floor(x)` | 負の無限大方向への切り捨て | `floor(-3.7)` → `-4` |
+| `ceil(x)` | 正の無限大方向への切り上げ | `ceil(3.2)` → `4` |
+| `round(x)` | 四捨五入 | `round(3.5)` → `4` |
+| `sqrt(x)` | 平方根 | `sqrt(9)` → `3` |
+| `pow(x, y)` | x の y 乗 | `pow(2, 3)` → `8` |
+| `min(a, b, ...)` | 最小値（可変長引数） | `min(3, 1, 2)` → `1` |
+| `max(a, b, ...)` | 最大値（可変長引数） | `max(3, 1, 2)` → `3` |
+| `random()` | 0 以上 1 未満の乱数 | `random()` → `0.42...` |
+
+> 注: `floor` は負の無限大方向への切り捨てで、`int` は 0 方向への切り捨て（trunc）です。例: `floor(-3.7)` → `-4`, `int(-3.7)` → `-3`。`sqrt` に負の数を渡すとエラーになります。
 
 ### ファイル操作
 

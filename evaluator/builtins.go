@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"math"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -431,6 +432,209 @@ var builtins = map[string]*object.Builtin{
 			old := args[1].(*object.String).Value
 			newStr := args[2].(*object.String).Value
 			return &object.String{Value: strings.ReplaceAll(str, old, newStr)}
+		},
+	},
+	"substring": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 3 {
+				return newError("wrong number of arguments. got=%d, want=3", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("first argument to `substring` must be STRING, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.NUMBER_OBJ {
+				return newError("second argument to `substring` must be NUMBER, got %s", args[1].Type())
+			}
+			if args[2].Type() != object.NUMBER_OBJ {
+				return newError("third argument to `substring` must be NUMBER, got %s", args[2].Type())
+			}
+			runes := []rune(args[0].(*object.String).Value)
+			start := int(args[1].(*object.Number).Value)
+			end := int(args[2].(*object.Number).Value)
+			runeLen := len(runes)
+			if start < 0 || start > runeLen {
+				return newError("substring start index out of range: %d (length: %d)", start, runeLen)
+			}
+			if end < 0 || end > runeLen {
+				return newError("substring end index out of range: %d (length: %d)", end, runeLen)
+			}
+			if start > end {
+				return newError("substring start index %d is greater than end index %d", start, end)
+			}
+			return &object.String{Value: string(runes[start:end])}
+		},
+	},
+	"indexOf": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("wrong number of arguments. got=%d, want=2", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("first argument to `indexOf` must be STRING, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.STRING_OBJ {
+				return newError("second argument to `indexOf` must be STRING, got %s", args[1].Type())
+			}
+			str := args[0].(*object.String).Value
+			substr := args[1].(*object.String).Value
+			// byte 位置を取得し、rune 位置に変換
+			byteIndex := strings.Index(str, substr)
+			if byteIndex == -1 {
+				return &object.Number{Value: -1}
+			}
+			runeIndex := len([]rune(str[:byteIndex]))
+			return &object.Number{Value: float64(runeIndex)}
+		},
+	},
+	"toUpper": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("argument to `toUpper` must be STRING, got %s", args[0].Type())
+			}
+			str := args[0].(*object.String).Value
+			return &object.String{Value: strings.ToUpper(str)}
+		},
+	},
+	"toLower": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.STRING_OBJ {
+				return newError("argument to `toLower` must be STRING, got %s", args[0].Type())
+			}
+			str := args[0].(*object.String).Value
+			return &object.String{Value: strings.ToLower(str)}
+		},
+	},
+	"abs": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.NUMBER_OBJ {
+				return newError("argument to `abs` must be NUMBER, got %s", args[0].Type())
+			}
+			val := args[0].(*object.Number).Value
+			return &object.Number{Value: math.Abs(val)}
+		},
+	},
+	"floor": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.NUMBER_OBJ {
+				return newError("argument to `floor` must be NUMBER, got %s", args[0].Type())
+			}
+			val := args[0].(*object.Number).Value
+			return &object.Number{Value: math.Floor(val)}
+		},
+	},
+	"ceil": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.NUMBER_OBJ {
+				return newError("argument to `ceil` must be NUMBER, got %s", args[0].Type())
+			}
+			val := args[0].(*object.Number).Value
+			return &object.Number{Value: math.Ceil(val)}
+		},
+	},
+	"round": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.NUMBER_OBJ {
+				return newError("argument to `round` must be NUMBER, got %s", args[0].Type())
+			}
+			val := args[0].(*object.Number).Value
+			return &object.Number{Value: math.Round(val)}
+		},
+	},
+	"sqrt": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 1 {
+				return newError("wrong number of arguments. got=%d, want=1", len(args))
+			}
+			if args[0].Type() != object.NUMBER_OBJ {
+				return newError("argument to `sqrt` must be NUMBER, got %s", args[0].Type())
+			}
+			val := args[0].(*object.Number).Value
+			if val < 0 {
+				return newError("cannot calculate square root of negative number: %g", val)
+			}
+			return &object.Number{Value: math.Sqrt(val)}
+		},
+	},
+	"pow": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 2 {
+				return newError("wrong number of arguments. got=%d, want=2", len(args))
+			}
+			if args[0].Type() != object.NUMBER_OBJ {
+				return newError("first argument to `pow` must be NUMBER, got %s", args[0].Type())
+			}
+			if args[1].Type() != object.NUMBER_OBJ {
+				return newError("second argument to `pow` must be NUMBER, got %s", args[1].Type())
+			}
+			base := args[0].(*object.Number).Value
+			exp := args[1].(*object.Number).Value
+			return &object.Number{Value: math.Pow(base, exp)}
+		},
+	},
+	"min": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) == 0 {
+				return newError("wrong number of arguments. got=0, want=1+")
+			}
+			for i, arg := range args {
+				if arg.Type() != object.NUMBER_OBJ {
+					return newError("argument %d to `min` must be NUMBER, got %s", i+1, arg.Type())
+				}
+			}
+			result := args[0].(*object.Number).Value
+			for _, arg := range args[1:] {
+				val := arg.(*object.Number).Value
+				if val < result {
+					result = val
+				}
+			}
+			return &object.Number{Value: result}
+		},
+	},
+	"max": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) == 0 {
+				return newError("wrong number of arguments. got=0, want=1+")
+			}
+			for i, arg := range args {
+				if arg.Type() != object.NUMBER_OBJ {
+					return newError("argument %d to `max` must be NUMBER, got %s", i+1, arg.Type())
+				}
+			}
+			result := args[0].(*object.Number).Value
+			for _, arg := range args[1:] {
+				val := arg.(*object.Number).Value
+				if val > result {
+					result = val
+				}
+			}
+			return &object.Number{Value: result}
+		},
+	},
+	"random": {
+		Fn: func(args ...object.Object) object.Object {
+			if len(args) != 0 {
+				return newError("wrong number of arguments. got=%d, want=0", len(args))
+			}
+			return &object.Number{Value: rand.Float64()}
 		},
 	},
 	"delete": {

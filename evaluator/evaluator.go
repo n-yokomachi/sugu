@@ -57,6 +57,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.ForStatement:
 		return evalForStatement(node, env)
 
+	case *ast.ForInStatement:
+		return evalForInStatement(node, env)
+
 	case *ast.SwitchStatement:
 		return evalSwitchStatement(node, env)
 
@@ -577,6 +580,97 @@ func evalForStatement(fs *ast.ForStatement, env *object.Environment) object.Obje
 			if isError(update) {
 				return update
 			}
+		}
+	}
+
+	return result
+}
+
+// evalForInStatement はfor-in文を評価
+func evalForInStatement(node *ast.ForInStatement, env *object.Environment) object.Object {
+	iterable := Eval(node.Iterable, env)
+	if isError(iterable) {
+		return iterable
+	}
+
+	switch obj := iterable.(type) {
+	case *object.Array:
+		return evalForInArray(node, obj, env)
+	case *object.Map:
+		return evalForInMap(node, obj, env)
+	default:
+		return newError("for-in requires ARRAY or MAP, got %s", iterable.Type())
+	}
+}
+
+// evalForInArray は配列に対する for-in を評価
+func evalForInArray(node *ast.ForInStatement, arr *object.Array, env *object.Environment) object.Object {
+	var result object.Object = NULL
+
+	for i, elem := range arr.Elements {
+		iterEnv := object.NewEnclosedEnvironment(env)
+
+		if node.Value != nil {
+			// for (index, item in arr)
+			iterEnv.SetConst(node.Key.Value, &object.Number{Value: float64(i)})
+			iterEnv.SetConst(node.Value.Value, elem)
+		} else {
+			// for (item in arr)
+			iterEnv.SetConst(node.Key.Value, elem)
+		}
+
+		result = Eval(node.Body, iterEnv)
+		if isError(result) {
+			return result
+		}
+		if _, ok := result.(*breakValue); ok {
+			return NULL
+		}
+		if _, ok := result.(*continueValue); ok {
+			continue
+		}
+		if result != nil && result.Type() == object.RETURN_OBJ {
+			return result
+		}
+		if _, ok := result.(*throwValue); ok {
+			return result
+		}
+	}
+
+	return result
+}
+
+// evalForInMap はマップに対する for-in を評価
+func evalForInMap(node *ast.ForInStatement, mapObj *object.Map, env *object.Environment) object.Object {
+	var result object.Object = NULL
+
+	for _, pair := range mapObj.Pairs {
+		iterEnv := object.NewEnclosedEnvironment(env)
+
+		if node.Value != nil {
+			// for (key, value in map)
+			iterEnv.SetConst(node.Key.Value, pair.Key)
+			iterEnv.SetConst(node.Value.Value, pair.Value)
+		} else {
+			// for (key in map)
+			iterEnv.SetConst(node.Key.Value, pair.Key)
+		}
+
+		result = Eval(node.Body, iterEnv)
+		if isError(result) {
+			return result
+		}
+		if _, ok := result.(*breakValue); ok {
+			return NULL
+		}
+		if _, ok := result.(*continueValue); ok {
+			continue
+		}
+		if result != nil && result.Type() == object.RETURN_OBJ {
+			return result
+		}
+		if _, ok := result.(*throwValue); ok {
+			return result
 		}
 	}
 

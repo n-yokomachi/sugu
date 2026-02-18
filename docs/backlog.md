@@ -264,8 +264,6 @@ if os.IsNotExist(err) {
 ### 重要レベル（スケールするプログラムに必要）
 
 - **モジュールシステム** - `import` で他のファイルを読み込む
-- **文字列操作関数** - `split`, `join`, `trim`, `replace` など
-- **数学関数** - `abs`, `floor`, `ceil`, `random` など
 
 ### あると便利レベル
 

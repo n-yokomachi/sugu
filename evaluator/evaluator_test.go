@@ -1545,6 +1545,390 @@ func TestBuiltinFileIO(t *testing.T) {
 	}
 }
 
+func TestForInArraySingleVariable(t *testing.T) {
+	// 配列の単一変数イテレーション（Req 5.1）
+	input := `
+mut sum = 0;
+for (item in [1, 2, 3, 4, 5]) {
+  sum = sum + item;
+}
+sum;
+`
+	testNumberObject(t, testEval(input), 15)
+}
+
+func TestForInArrayTwoVariables(t *testing.T) {
+	// 配列の2変数イテレーション（Req 5.2）
+	input := `
+mut result = "";
+for (i, item in ["a", "b", "c"]) {
+  result = result + string(i) + ":" + item + " ";
+}
+trim(result);
+`
+	evaluated := testEval(input)
+	str, ok := evaluated.(*object.String)
+	if !ok {
+		t.Fatalf("object is not String. got=%T (%+v)", evaluated, evaluated)
+	}
+	if str.Value != "0:a 1:b 2:c" {
+		t.Errorf("wrong value. got=%q", str.Value)
+	}
+}
+
+func TestForInMapSingleVariable(t *testing.T) {
+	// マップの単一変数イテレーション（Req 5.3）
+	input := `
+mut count = 0;
+for (key in {"a": 1, "b": 2, "c": 3}) {
+  count = count + 1;
+}
+count;
+`
+	testNumberObject(t, testEval(input), 3)
+}
+
+func TestForInMapTwoVariables(t *testing.T) {
+	// マップの2変数イテレーション（Req 5.4）
+	input := `
+mut sum = 0;
+for (key, value in {"a": 10, "b": 20}) {
+  sum = sum + value;
+}
+sum;
+`
+	testNumberObject(t, testEval(input), 30)
+}
+
+func TestForInConstVariable(t *testing.T) {
+	// イテレーション変数は const（Req 5.5）
+	input := `
+for (item in [1, 2, 3]) {
+  item = 99;
+}
+`
+	evaluated := testEval(input)
+	errObj, ok := evaluated.(*object.Error)
+	if !ok {
+		t.Fatalf("expected error for const reassignment. got=%T (%+v)", evaluated, evaluated)
+	}
+	if errObj.Message == "" {
+		t.Errorf("error message should not be empty")
+	}
+}
+
+func TestForInBreak(t *testing.T) {
+	// break でループを即座に終了（Req 5.6）
+	input := `
+mut sum = 0;
+for (item in [1, 2, 3, 4, 5]) {
+  if (item == 4) {
+    break;
+  }
+  sum = sum + item;
+}
+sum;
+`
+	testNumberObject(t, testEval(input), 6) // 1 + 2 + 3
+}
+
+func TestForInContinue(t *testing.T) {
+	// continue で次のイテレーションにスキップ（Req 5.7）
+	input := `
+mut sum = 0;
+for (item in [1, 2, 3, 4, 5]) {
+  if (item % 2 == 0) {
+    continue;
+  }
+  sum = sum + item;
+}
+sum;
+`
+	testNumberObject(t, testEval(input), 9) // 1 + 3 + 5
+}
+
+func TestForInReturn(t *testing.T) {
+	// return をループ内から正しく伝播
+	input := `
+func findFirst(arr) => {
+  for (item in arr) {
+    if (item > 3) {
+      return item;
+    }
+  }
+  return -1;
+};
+findFirst([1, 2, 5, 3]);
+`
+	testNumberObject(t, testEval(input), 5)
+}
+
+func TestForInEmptyCollection(t *testing.T) {
+	// 空配列・空マップのイテレーション
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{`mut x = 0; for (item in []) { x = 1; } x;`, 0},
+		{`mut x = 0; for (key in {}) { x = 1; } x;`, 0},
+	}
+
+	for _, tt := range tests {
+		testNumberObject(t, testEval(tt.input), tt.expected)
+	}
+}
+
+func TestForInTypeError(t *testing.T) {
+	// Array/Map 以外はエラー
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`for (item in 42) { outln(item); }`, "for-in requires ARRAY or MAP, got NUMBER"},
+		{`for (item in "hello") { outln(item); }`, "for-in requires ARRAY or MAP, got STRING"},
+		{`for (item in true) { outln(item); }`, "for-in requires ARRAY or MAP, got BOOLEAN"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestAbsBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`abs(5)`, 5.0},
+		{`abs(-5)`, 5.0},
+		{`abs(0)`, 0.0},
+		{`abs(-3.14)`, 3.14},
+		{`abs(3.14)`, 3.14},
+		// エラー
+		{`abs("hello")`, "argument to `abs` must be NUMBER, got STRING"},
+		{`abs()`, "wrong number of arguments. got=0, want=1"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case float64:
+			testNumberObject(t, evaluated, expected)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestFloorCeilRoundBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		// floor: 負の無限大方向への切り捨て
+		{`floor(3.7)`, 3},
+		{`floor(3.2)`, 3},
+		{`floor(-3.7)`, -4},
+		{`floor(-3.2)`, -4},
+		{`floor(5)`, 5},
+		{`floor(0)`, 0},
+		// ceil: 正の無限大方向への切り上げ
+		{`ceil(3.2)`, 4},
+		{`ceil(3.7)`, 4},
+		{`ceil(-3.7)`, -3},
+		{`ceil(-3.2)`, -3},
+		{`ceil(5)`, 5},
+		{`ceil(0)`, 0},
+		// round: 四捨五入
+		{`round(3.4)`, 3},
+		{`round(3.5)`, 4},
+		{`round(3.6)`, 4},
+		{`round(-3.4)`, -3},
+		{`round(-3.5)`, -4},
+		{`round(0)`, 0},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+
+	// floor と int の違い（Truncation vs Floor）
+	floorResult := testEval(`floor(-3.7)`)
+	testNumberObject(t, floorResult, -4)
+	intResult := testEval(`int(-3.7)`)
+	testNumberObject(t, intResult, -3)
+
+	// 型エラー
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`floor("hello")`, "argument to `floor` must be NUMBER, got STRING"},
+		{`ceil("hello")`, "argument to `ceil` must be NUMBER, got STRING"},
+		{`round("hello")`, "argument to `round` must be NUMBER, got STRING"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestSqrtBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`sqrt(4)`, 2.0},
+		{`sqrt(9)`, 3.0},
+		{`sqrt(2)`, 1.4142135623730951},
+		{`sqrt(0)`, 0.0},
+		{`sqrt(1)`, 1.0},
+		// エラー
+		{`sqrt(-1)`, "cannot calculate square root of negative number: -1"},
+		{`sqrt("hello")`, "argument to `sqrt` must be NUMBER, got STRING"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case float64:
+			testNumberObject(t, evaluated, expected)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestPowBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		{`pow(2, 3)`, 8.0},
+		{`pow(2, 0)`, 1.0},
+		{`pow(2, -1)`, 0.5},
+		{`pow(10, 2)`, 100.0},
+		{`pow(0, 0)`, 1.0},
+		// エラー
+		{`pow("a", 2)`, "first argument to `pow` must be NUMBER, got STRING"},
+		{`pow(2, "b")`, "second argument to `pow` must be NUMBER, got STRING"},
+		{`pow(2)`, "wrong number of arguments. got=1, want=2"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case float64:
+			testNumberObject(t, evaluated, expected)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestMinMaxBuiltin(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected interface{}
+	}{
+		// min
+		{`min(1, 2, 3)`, 1.0},
+		{`min(3, 1, 2)`, 1.0},
+		{`min(5)`, 5.0},
+		{`min(-1, -2, -3)`, -3.0},
+		{`min(1.5, 2.5, 0.5)`, 0.5},
+		// max
+		{`max(1, 2, 3)`, 3.0},
+		{`max(3, 1, 2)`, 3.0},
+		{`max(5)`, 5.0},
+		{`max(-1, -2, -3)`, -1.0},
+		{`max(1.5, 2.5, 0.5)`, 2.5},
+		// エラー
+		{`min()`, "wrong number of arguments. got=0, want=1+"},
+		{`max()`, "wrong number of arguments. got=0, want=1+"},
+		{`min(1, "a")`, "argument 2 to `min` must be NUMBER, got STRING"},
+		{`max("a", 1)`, "argument 1 to `max` must be NUMBER, got STRING"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		switch expected := tt.expected.(type) {
+		case float64:
+			testNumberObject(t, evaluated, expected)
+		case string:
+			errObj, ok := evaluated.(*object.Error)
+			if !ok {
+				t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+				continue
+			}
+			if errObj.Message != expected {
+				t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, expected, errObj.Message)
+			}
+		}
+	}
+}
+
+func TestRandomBuiltin(t *testing.T) {
+	// random() は 0以上1未満の乱数を返す
+	for i := 0; i < 10; i++ {
+		evaluated := testEval(`random()`)
+		num, ok := evaluated.(*object.Number)
+		if !ok {
+			t.Fatalf("object is not Number. got=%T (%+v)", evaluated, evaluated)
+		}
+		if num.Value < 0 || num.Value >= 1 {
+			t.Errorf("random() returned %f, expected 0 <= x < 1", num.Value)
+		}
+	}
+
+	// 引数ありはエラー
+	evaluated := testEval(`random(42)`)
+	errObj, ok := evaluated.(*object.Error)
+	if !ok {
+		t.Fatalf("no error object returned. got=%T(%+v)", evaluated, evaluated)
+	}
+	if errObj.Message != "wrong number of arguments. got=1, want=0" {
+		t.Errorf("wrong error message. got=%q", errObj.Message)
+	}
+}
+
 func TestDeleteBuiltin(t *testing.T) {
 	// 正常系: 存在するキーの削除（Req 2.1）
 	tests := []struct {
@@ -1760,6 +2144,203 @@ func TestTrimBuiltin(t *testing.T) {
 	}{
 		{`trim(123)`, "argument to `trim` must be STRING, got NUMBER"},
 		{`trim()`, "wrong number of arguments. got=0, want=1"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestSubstringBuiltin(t *testing.T) {
+	// 正常系（Req 3.5）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`substring("hello", 0, 5)`, "hello"},
+		{`substring("hello", 1, 4)`, "ell"},
+		{`substring("hello", 0, 0)`, ""},
+		{`substring("hello", 5, 5)`, ""},
+		// マルチバイト文字（rune 単位）
+		{`substring("こんにちは", 0, 3)`, "こんに"},
+		{`substring("こんにちは", 2, 5)`, "にちは"},
+		{`substring("hello世界", 5, 7)`, "世界"},
+		{`substring("hello世界", 0, 5)`, "hello"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+
+	// エラーケース
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`substring("hello", -1, 3)`, "substring start index out of range: -1 (length: 5)"},
+		{`substring("hello", 0, 6)`, "substring end index out of range: 6 (length: 5)"},
+		{`substring("hello", 3, 1)`, "substring start index 3 is greater than end index 1"},
+		{`substring(123, 0, 1)`, "first argument to `substring` must be STRING, got NUMBER"},
+		{`substring("hello", "0", 1)`, "second argument to `substring` must be NUMBER, got STRING"},
+		{`substring("hello", 0, "1")`, "third argument to `substring` must be NUMBER, got STRING"},
+		{`substring("hello", 0)`, "wrong number of arguments. got=2, want=3"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestIndexOfBuiltin(t *testing.T) {
+	// 正常系（Req 3.6）
+	tests := []struct {
+		input    string
+		expected float64
+	}{
+		{`indexOf("hello", "ell")`, 1},
+		{`indexOf("hello", "hello")`, 0},
+		{`indexOf("hello", "o")`, 4},
+		{`indexOf("hello", "xyz")`, -1},
+		{`indexOf("hello", "")`, 0},
+		{`indexOf("", "")`, 0},
+		{`indexOf("", "a")`, -1},
+		// マルチバイト文字（rune 単位のインデックス）
+		{`indexOf("こんにちは", "にち")`, 2},
+		{`indexOf("hello世界", "世界")`, 5},
+		{`indexOf("こんにちは", "さよなら")`, -1},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		testNumberObject(t, evaluated, tt.expected)
+	}
+
+	// 型エラー（Req 3.9）
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`indexOf(123, "a")`, "first argument to `indexOf` must be STRING, got NUMBER"},
+		{`indexOf("hello", 1)`, "second argument to `indexOf` must be STRING, got NUMBER"},
+		{`indexOf("hello")`, "wrong number of arguments. got=1, want=2"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestToUpperBuiltin(t *testing.T) {
+	// 正常系（Req 3.7）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`toUpper("hello")`, "HELLO"},
+		{`toUpper("Hello World")`, "HELLO WORLD"},
+		{`toUpper("ALREADY")`, "ALREADY"},
+		{`toUpper("")`, ""},
+		{`toUpper("abc123")`, "ABC123"},
+		// マルチバイト文字
+		{`toUpper("helloこんにちは")`, "HELLOこんにちは"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+
+	// 型エラー（Req 3.9）
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`toUpper(123)`, "argument to `toUpper` must be STRING, got NUMBER"},
+		{`toUpper()`, "wrong number of arguments. got=0, want=1"},
+	}
+	for _, tt := range errTests {
+		evaluated := testEval(tt.input)
+		errObj, ok := evaluated.(*object.Error)
+		if !ok {
+			t.Errorf("input %q: no error. got=%T(%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if errObj.Message != tt.expected {
+			t.Errorf("input %q: wrong error. expected=%q, got=%q", tt.input, tt.expected, errObj.Message)
+		}
+	}
+}
+
+func TestToLowerBuiltin(t *testing.T) {
+	// 正常系（Req 3.8）
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{`toLower("HELLO")`, "hello"},
+		{`toLower("Hello World")`, "hello world"},
+		{`toLower("already")`, "already"},
+		{`toLower("")`, ""},
+		{`toLower("ABC123")`, "abc123"},
+		// マルチバイト文字
+		{`toLower("HELLOこんにちは")`, "helloこんにちは"},
+	}
+
+	for _, tt := range tests {
+		evaluated := testEval(tt.input)
+		str, ok := evaluated.(*object.String)
+		if !ok {
+			t.Errorf("input %q: object is not String. got=%T (%+v)", tt.input, evaluated, evaluated)
+			continue
+		}
+		if str.Value != tt.expected {
+			t.Errorf("input %q: wrong value. expected=%q, got=%q", tt.input, tt.expected, str.Value)
+		}
+	}
+
+	// 型エラー（Req 3.9）
+	errTests := []struct {
+		input    string
+		expected string
+	}{
+		{`toLower(123)`, "argument to `toLower` must be STRING, got NUMBER"},
+		{`toLower()`, "wrong number of arguments. got=0, want=1"},
 	}
 	for _, tt := range errTests {
 		evaluated := testEval(tt.input)

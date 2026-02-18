@@ -39,7 +39,9 @@
       "Skill(review-pull-request:*)",
       "Bash(dir:*)",
       "Bash(findstr:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Skill(kiro:spec-status)",
+      "Skill(kiro:spec-init)"
     ]
   }
 }

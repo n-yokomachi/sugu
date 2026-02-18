@@ -35,8 +35,8 @@ Phase 4 では、Sugu を汎用プログラミング言語として使えるよ�
 
 ### 実装内容
 
-- [ ] **Evaluator/evaluator.go**: `%` 演算子を `math.Mod` で実装
-- [ ] **テスト**: 浮動小数点剰余のテスト
+- [x] **Evaluator/evaluator.go**: `%` 演算子を `math.Mod` で実装
+- [x] **テスト**: 浮動小数点剰余のテスト
 
 ### 実装詳細
 
@@ -74,8 +74,8 @@ case "%":
 
 ### 実装内容
 
-- [ ] **Evaluator/builtins.go**: `delete()` 関数を実装
-- [ ] **テスト**: delete のテスト
+- [x] **Evaluator/builtins.go**: `delete()` 関数を実装
+- [x] **テスト**: delete のテスト
 
 ### 動作仕様
 
@@ -114,8 +114,8 @@ delete(map, "c");  // 存在しないキーは無視（エラーにならない�
 
 ### 実装内容
 
-- [ ] **Evaluator/builtins.go**: 文字列操作関数を実装
-- [ ] **テスト**: 各関数のテスト
+- [x] **Evaluator/builtins.go**: 文字列操作関数を実装
+- [x] **テスト**: 各関数のテスト
 
 ### 設計詳細
 
@@ -166,8 +166,8 @@ delete(map, "c");  // 存在しないキーは無視（エラーにならない�
 
 ### 実装内容
 
-- [ ] **Evaluator/builtins.go**: 数学関数を実装
-- [ ] **テスト**: 各関数のテスト
+- [x] **Evaluator/builtins.go**: 数学関数を実装
+- [x] **テスト**: 各関数のテスト
 
 ### 設計詳細
 
@@ -230,11 +230,11 @@ for (key, value in map) {
 
 ### 実装内容
 
-- [ ] **Token**: `IN` トークンを追加
-- [ ] **AST**: `ForInStatement` ノードを追加
-- [ ] **Parser**: for-in 構文の解析
-- [ ] **Evaluator**: for-in の評価
-- [ ] **テスト**: for-in のテスト
+- [x] **Token**: `IN` トークンを追加
+- [x] **AST**: `ForInStatement` ノードを追加
+- [x] **Parser**: for-in 構文の解析
+- [x] **Evaluator**: for-in の評価
+- [x] **テスト**: for-in のテスト
 
 ### AST 設計
 
